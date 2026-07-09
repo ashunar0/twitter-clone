@@ -1,5 +1,5 @@
 import type { Tweet, TweetsData } from "../type";
-import type { AuthorSummary } from "../schema";
+import type { AuthorSummary, CreateTweetWire } from "../schema";
 import { usersRepository, type StoredUser } from "../../users/server/repository";
 import { tweetsRepository, type StoredTweet } from "./repository";
 
@@ -23,6 +23,15 @@ function toAuthorSummary(row: StoredUser): AuthorSummary {
 }
 
 export const tweetsService = {
+  // create: current user 名義で 1 件作成する。id / createdAt は server 側で自動採番。
+  async create(input: CreateTweetWire, currentUserId: string): Promise<Tweet> {
+    const row = await tweetsRepository.insert({
+      id: crypto.randomUUID(),
+      authorId: currentUserId,
+      body: input.body,
+    });
+    return toWire(row);
+  },
   // list: 直近 tweets に author の summary を付けて返す (cross-domain read model)。
   async list(): Promise<TweetsData> {
     const rows = await tweetsRepository.findRecent();

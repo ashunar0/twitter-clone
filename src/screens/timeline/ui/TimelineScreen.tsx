@@ -1,6 +1,7 @@
 import { useTweetsQuery } from "@features/tweets/client/queries";
 import type { Tweet } from "@features/tweets/type";
 import type { AuthorSummary } from "@features/tweets/schema";
+import { TweetComposer } from "./TweetComposer";
 
 // public timeline 画面。read model (tweets + authorSummaries) を表示する。
 export function TimelineScreen() {
@@ -13,6 +14,7 @@ export function TimelineScreen() {
   return (
     <main className="mx-auto max-w-xl p-6">
       <h1 className="mb-4 text-2xl font-bold">Timeline</h1>
+      <TweetComposer />
       <ul className="flex flex-col gap-3">
         {data.tweets.map((tweet) => (
           <TweetItem
