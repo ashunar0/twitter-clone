@@ -15,6 +15,13 @@
       "when": 1783594511156,
       "tag": "0001_yellow_dreaming_celestial",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1783598468539,
+      "tag": "0002_stormy_starbolt",
+      "breakpoints": true
     }
   ]
 }

@@ -19,10 +19,19 @@ export const authorSummarySchema = z.object({
 });
 export type AuthorSummary = z.infer<typeof authorSummarySchema>;
 
-// GET /api/tweets の response。tweets + authorId→summary の map。
+// tweet ごとの like 情報。cross-domain read model の inline shape (owning feature = tweets)。
+// wire は array (mineIds: string[])、FE cache では Set へ差し替える。
+export const likeStateSchema = z.object({
+  counts: z.record(z.string(), z.number()),
+  mineIds: z.array(z.string()),
+});
+export type LikeStateWire = z.infer<typeof likeStateSchema>;
+
+// GET /api/tweets の response。tweets + authorId→summary の map + likeState。
 export const tweetsListResponseSchema = z.object({
   tweets: z.array(tweetWireSchema),
   authorSummaries: z.record(z.string(), authorSummarySchema),
+  likeState: likeStateSchema,
 });
 export type TweetsListResponseWire = z.infer<typeof tweetsListResponseSchema>;
 

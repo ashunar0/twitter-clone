@@ -1,6 +1,7 @@
 import type { Tweet, TweetsData } from "../type";
-import type { AuthorSummary, CreateTweetWire } from "../schema";
+import type { AuthorSummary, CreateTweetWire, LikeStateWire } from "../schema";
 import { usersRepository, type StoredUser } from "../../users/server/repository";
+import { likesRepository } from "../../likes/server/repository";
 import { tweetsRepository, type StoredTweet } from "./repository";
 
 // DB row → wire 形への変換。
@@ -32,12 +33,18 @@ export const tweetsService = {
     });
     return toWire(row);
   },
-  // list: 直近 tweets に author の summary を付けて返す (cross-domain read model)。
-  async list(): Promise<TweetsData> {
+  // list: 直近 tweets に author summary + likeState を付けて返す (cross-domain read model)。
+  async list(currentUserId: string): Promise<TweetsData> {
     const rows = await tweetsRepository.findRecent();
+    const tweetIds = rows.map((r) => r.id);
     const authorIds = [...new Set(rows.map((r) => r.authorId))];
-    // 別 feature (users) の repository を read-only で使う。service→service は禁止規約。
-    const authors = await usersRepository.findByIds(authorIds);
+
+    // 別 feature (users, likes) の repository を read-only で使う。service→service は禁止規約。
+    const [authors, mineIds, countsMap] = await Promise.all([
+      usersRepository.findByIds(authorIds),
+      likesRepository.findMineIds(tweetIds, currentUserId),
+      likesRepository.countByTweetIds(tweetIds),
+    ]);
     const authorMap = new Map(authors.map((a) => [a.id, a]));
 
     const authorSummaries: Record<string, AuthorSummary> = {};
@@ -46,9 +53,15 @@ export const tweetsService = {
       if (row) authorSummaries[id] = toAuthorSummary(row);
     }
 
+    const counts: Record<string, number> = {};
+    for (const id of tweetIds) counts[id] = countsMap.get(id) ?? 0;
+
+    const likeState: LikeStateWire = { counts, mineIds };
+
     return {
       tweets: rows.map(toWire),
       authorSummaries,
+      likeState,
     };
   },
 };

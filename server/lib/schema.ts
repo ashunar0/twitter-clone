@@ -2,3 +2,4 @@
 // features/*/server/table.ts で定義したテーブルをここで再 export する。
 export * from "../../features/users/server/table";
 export * from "../../features/tweets/server/table";
+export * from "../../features/likes/server/table";

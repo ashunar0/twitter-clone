@@ -32,12 +32,21 @@ export function useCreateTweetMutation(currentUser: User) {
       };
 
       queryClient.setQueryData<TweetsData>(listKey, (prev) => {
-        const base: TweetsData = prev ?? { tweets: [], authorSummaries: {} };
+        const base: TweetsData = prev ?? {
+          tweets: [],
+          authorSummaries: {},
+          likeState: { counts: {}, mineIds: [] },
+        };
         return {
+          ...base,
           tweets: [optimistic, ...base.tweets],
           authorSummaries: {
             ...base.authorSummaries,
             [currentUser.id]: authorSummary,
+          },
+          likeState: {
+            counts: { ...base.likeState.counts, [optimistic.id]: 0 },
+            mineIds: base.likeState.mineIds,
           },
         };
       });
