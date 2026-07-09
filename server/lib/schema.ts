@@ -3,3 +3,5 @@
 export * from "../../features/users/server/table";
 export * from "../../features/tweets/server/table";
 export * from "../../features/likes/server/table";
+export * from "../../features/follows/server/table";
+export * from "../../features/notifications/server/table";

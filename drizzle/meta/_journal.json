@@ -22,6 +22,13 @@
       "when": 1783598468539,
       "tag": "0002_stormy_starbolt",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1783602851718,
+      "tag": "0003_empty_ben_grimm",
+      "breakpoints": true
     }
   ]
 }
