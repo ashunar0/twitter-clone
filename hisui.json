@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ashunar0/hisui/main/registry/schema.json",
+  "framework": "vite",
+  "css": "src/app/globals.css",
+  "aliases": {
+    "ui": "@/shared/ui",
+    "lib": "@/lib"
+  },
+  "paths": {
+    "ui": "src/shared/ui",
+    "lib": "src/lib"
+  },
+  "packageManager": "pnpm"
+}
