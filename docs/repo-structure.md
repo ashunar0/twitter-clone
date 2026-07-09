@@ -62,9 +62,49 @@ features/<domain>/client ─→ features/<domain>/{schema, type, lib}, src/lib
 
 ## tsconfig
 
-- `tsconfig.web.json` — FE build 用。include: `src`, `features`, `server/app.ts`
-- `tsconfig.server.json` — BE build 用。include: `server`, `features`
+- `tsconfig.web.json` — FE build 用。include: `src`, `features`, `server/app.ts` (AppType 経路のみ)、types に `node` (BE 型が transitively `process` を触るため)
+- `tsconfig.server.json` — BE build 用。include: `server`, `features`、**exclude: `features/*/client`** (下記「B 構成の代償」参照)
 - `tsconfig.json` — references (project references の親)
+
+## B 構成の代償 (正直に書く)
+
+`features/<domain>/` の直下に `client/` と `server/` が兄弟として住む、この構成の代償を明記する。
+
+### 発生する pain
+
+1. **tsconfig の include/exclude を非対称に管理する必要**
+   - BE typecheck は `features/` 全体を include したいが、`features/*/client/` の中で FE 用 alias `@/*` を import している
+   - → `tsconfig.server.json` に `exclude: ["features/*/client"]` を書く必要
+   - 新規 feature 追加のたびに glob で自動的に効くので運用はシンプルだが、**知らないと詰まる**
+2. **path alias が非対称**
+   - `features/*/client/*.ts` は `@/*` (FE の src/) を使える、`@server/*` は使えない
+   - `features/*/server/*.ts` は `@server/*`、`@/*` は使えない
+   - 同じ features 内でも文脈で使える alias が違う
+3. **build tool 毎に paths 解決が違う**
+   - Vite: OK
+   - tsx: OK (tsconfig 経由)
+   - **drizzle-kit**: tsconfig paths を解決しない → `server/lib/schema.ts` は relative import 必須
+4. **FE tsconfig の `types: ["node"]`** — BE 型が transitively pull される都合で FE 側にも Node 型が入る。副作用として FE code から `process` に触れる (lint で塞ぐ余地あり、未実施)
+
+### この pain が起きない構成
+
+| 構成 | pain 有無 | 理由 |
+|---|---|---|
+| **A. apps/web + apps/server** | ❌ 起きない | FE / BE が別 apps に住む、tsconfig の境界が物理的に分離 |
+| **Next.js + 内部 Hono** | ❌ 起きない | 1 build で `"use client"` 境界で分岐、tsconfig 1 個で完結 |
+| **B. features 直下に client + server 兄弟** (このプロジェクト) | ✅ 起きる | 1 tsconfig で片方だけ include したい状況が発生 |
+
+### なぜ B を選んだか / 何を得たか
+
+- domain 単位で FE / BE のコードが物理的に隣接、cross-domain 合成 (read model) の実装と cache 型が近い場所で見える
+- 単一 repo / 単一 pnpm、DX が軽い
+- **記事化の観点で「apps 分割せずにここまで書ける、代償はこれ」を提示できる**
+
+### 実務適用時の目安
+
+- **team、複数人並行、CI 分離したい** → **A に切り替え**。B の代償が team scale で必ず痛くなる
+- **solo、垂直スライスを速く積みたい** → **B**。この pain は 1 度書いてしまえば運用コストは低い
+- **チーム移行が視野**にあるなら初期から A。B → A の翻訳は機械的だが、tsconfig / build script の書き直しは発生
 
 ## FE / BE の起動
 

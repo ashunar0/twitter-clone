@@ -91,13 +91,49 @@ export const <plural>Service = {
     const row = await <plural>Repository.findById(id);
     return row ? toWire(row) : null;
   },
-  // list / create / update / delete も同様に薄く
+  // create / update は「入力 (wire)」と「context (currentUserId 等)」を分離した引数で受ける。
+  async create(input: CreateEntityWire, currentUserId: string): Promise<Entity> {
+    const row = await <plural>Repository.insert({
+      id: crypto.randomUUID(),
+      ...input,
+      authorId: currentUserId,   // server 自動 set の field
+    });
+    return toWire(row);
+  },
 };
 ```
 
 - **`toWire` を挟むのは必須** — Drizzle の `$inferSelect` 型を直接 client に返さない (wire 契約を通す)
 - **enrichment** (join 相当の後処理) は **`enrichMany`** で 1 クエリ + Map 変換して N+1 回避
   - 個別行ごとに他 feature の repository を叩かない
+- **id 生成**: `crypto.randomUUID()` を server 側で採番 (Node / Cloudflare Workers 両対応)
+- **create/update の引数**: `service.create(input, currentUserId)` — 入力とコンテキストを分離。route 側で `c.get("currentUser").id` を渡す
+- **create の response**: 作成した entity 単体を 201 で返す。cross-domain 合成 (author summary 等) は list endpoint に任せる — create response には混ぜない
+
+## Route の書き方
+
+```ts
+const <plural> = new Hono<{ Variables: AuthVariables }>()
+  // GET は auth 不要なら withCurrentUser を外してよい (public read)。
+  .get("/", async (c) => { ... })
+  // 書き込み系は auth + zValidator を chain 内で束ねる。
+  .post(
+    "/",
+    withCurrentUser,
+    zValidator("json", create<Entity>WireSchema),
+    async (c) => {
+      const input = c.req.valid("json");
+      const currentUser = c.get("currentUser");
+      const entity = await <plural>Service.create(input, currentUser.id);
+      return c.json(entity, 201);
+    },
+  );
+```
+
+- **zod validation は route 入口で弾く** — `@hono/zod-validator` の `zValidator("json", schema)` を chain 内に置く
+  - service 内で `schema.parse()` はしない (責務分離、error shape も route 側で統一)
+- **status code**: create 成功 = **201**、list = 200、削除成功 = 204 (未実装)
+- **auth と validator は同じ chain 内**: `.post("/", withCurrentUser, zValidator(...), handler)` — 順序も意味あり (auth 先、validator 後、handler 最後)
 
 ## Cross-feature access ルール
 
@@ -228,6 +264,16 @@ export async function createTweet(
 
 ## 未確定 (次スライスで検証)
 
-- **create/update の 引数分割 pattern** — `service.create(input, currentUserId)` か `service.create({ ...input, authorId })` か。tweets で確定させる
-- **zod validation の layer** — sub-app の `zValidator` で入口で弾くか、service 内で parse するか。`hono/zod-validator` 導入時に確定
-- **error shape の統一** — HTTPException どの status を何に使うか。tweets create でエラー系が出た時に確定
+- **error shape の統一** — zValidator 失敗時の 400 response 形、HTTPException の status 使い分けはまだ観察していない。バリデーション失敗を意図的に踏むスライス (validation UI テスト、必須欠落 UX) で確定
+- **usecase 層の実装確認** — 現時点で cross-feature write orchestration の実例なし。like / follow / notification 実装時に確定
+- **cursor pagination の型と実装** — tweets list は latest 50 固定、cursor 未実装。feed が伸びたスライスで導入
+
+## 検証済み (実装で確定)
+
+| 論点 | 決着 | 検証したスライス |
+|---|---|---|
+| create の service 引数 | `service.create(input, currentUserId)` (入力 vs context 分離) | #4b tweets create |
+| zod validation の layer | route 入口で `zValidator("json", schema)` を chain 内に | #4b tweets create |
+| create response の形 | 作成 entity 単体を 201。cross-domain 合成は list に任せる | #4b tweets create |
+| id 生成 | server 側で `crypto.randomUUID()` | #4b tweets create |
+| read の cross-domain 合成 | service が別 feature の repository を read enrichment に使う | #4a tweets list |
