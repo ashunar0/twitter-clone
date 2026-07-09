@@ -184,29 +184,82 @@ features/<owner>/server/usecases/
   └─ <verb><Entity>.ts    ← ファイル名 == 関数名 (camelCase)
 ```
 
-例 (tweet 作成 → notification 発火が要る場合、想像):
+**#16 で実装した実例** (features/follows/server/usecases/followUser.ts):
 ```ts
-// features/tweets/server/usecases/createTweet.ts
+import { HTTPException } from "hono/http-exception";
+import { followsService } from "../service";
+import { notificationsService } from "../../../notifications/server/service";
 
-// tweet を作成し、mention 対象がいれば notification を発火する。
-export async function createTweet(
-  input: CreateTweetWire,
+// follow を追加し、新規なら followee 宛に "follow" 通知を発火する。
+export async function followUser(
   currentUserId: string,
-): Promise<Tweet> {
-  const tweet = await tweetsService.create(input, currentUserId);
-  const mentioned = extractMentions(input.body);
-  if (mentioned.length > 0) {
-    await notificationsService.notifyMentions(tweet.id, mentioned);
+  followeeId: string,
+): Promise<void> {
+  if (currentUserId === followeeId) {
+    throw new HTTPException(400, { message: "cannot follow yourself" });
   }
-  return tweet;
+  const created = await followsService.follow(currentUserId, followeeId);
+  // 冪等: 既に follow 済みなら通知を再作成しない。
+  if (created) {
+    await notificationsService.record({
+      kind: "follow",
+      recipientId: followeeId,
+      actorId: currentUserId,
+    });
+  }
 }
 ```
 
+route 側 (features/follows/server/index.ts):
+```ts
+.post("/", zValidator("json", createFollowWireSchema), async (c) => {
+  const { followeeId } = c.req.valid("json");
+  const currentUser = c.get("currentUser");
+  await followUser(currentUser.id, followeeId);
+  return c.json({ ok: true }, 201);
+})
+```
+
 - **ファイル 1 個 = 関数 1 個**、export はデフォルトでなく named
-- ファイル名 (`createTweet.ts`) と関数名 (`createTweet`) を必ず一致させる
+- ファイル名 (`followUser.ts`) と関数名 (`followUser`) を必ず一致させる
 - **usecase は他 feature の service を import してよい** (このためだけの層)
 - **service は他 feature の service を import しない** — orchestration が要る時は usecase を切る
 - **route は service か usecase のどちらかを呼ぶ**、両方は混ぜない (責務が曖昧になる)
+- **business rule は usecase に置く** — self-follow 禁止のような制約はここで `HTTPException` を投げる (service は low-level に保つ)
+
+### 冪等 write orchestration パターン
+
+「重複投入は無視しつつ、新規時だけ side effect (通知等) を打つ」を実現するために、repository / service で **新規作成されたか** を返す:
+
+```ts
+// features/follows/server/repository.ts
+async insert(followerId: string, followeeId: string): Promise<boolean> {
+  const result = await db
+    .insert(follows)
+    .values({ followerId, followeeId })
+    .onConflictDoNothing()
+    .returning({ followerId: follows.followerId });
+  return result.length > 0;   // ← 新規時のみ true
+}
+
+// features/follows/server/service.ts
+async follow(followerId: string, followeeId: string): Promise<boolean> {
+  return followsRepository.insert(followerId, followeeId);
+}
+
+// features/follows/server/usecases/followUser.ts
+const created = await followsService.follow(currentUserId, followeeId);
+if (created) await notificationsService.record({...});   // ← 新規時だけ
+```
+
+- `.onConflictDoNothing().returning(...)` — SQLite / PG 共通で機能
+- 「複数回 POST しても副作用は 1 回」を保証、client 側の retry / double-click に強い
+- delete 系は逆に「存在しなくても 204」で冪等、副作用なし → usecase 不要 (route → service 直呼び)
+
+### 副作用のライフサイクル分離
+
+follow を外しても notification は消えない (通知履歴は残す)。
+「関係 entity」と「side effect entity (通知履歴)」は別ライフサイクル、**cascade は関係 entity にだけ効かせる** (follows table の `onDelete: "cascade"` は users まで)。
 
 ### 判断フロー
 
@@ -265,7 +318,6 @@ export async function createTweet(
 ## 未確定 (次スライスで検証)
 
 - **error shape の統一** — zValidator 失敗時の 400 response 形、HTTPException の status 使い分けはまだ観察していない。バリデーション失敗を意図的に踏むスライス (validation UI テスト、必須欠落 UX) で確定
-- **usecase 層の実装確認** — 現時点で cross-feature write orchestration の実例なし。like / follow / notification 実装時に確定
 - **cursor pagination の型と実装** — tweets list は latest 50 固定、cursor 未実装。feed が伸びたスライスで導入
 
 ## 検証済み (実装で確定)
@@ -277,3 +329,7 @@ export async function createTweet(
 | create response の形 | 作成 entity 単体を 201。cross-domain 合成は list に任せる | #4b tweets create |
 | id 生成 | server 側で `crypto.randomUUID()` | #4b tweets create |
 | read の cross-domain 合成 | service が別 feature の repository を read enrichment に使う | #4a tweets list |
+| write の cross-domain orchestration | `usecases/<verb><Entity>.ts` で 1 ファイル 1 関数、他 feature service 呼び出し許可 | #16 followUser |
+| 冪等 write + side effect | `.onConflictDoNothing().returning(...)` の length で新規判定、新規時のみ side effect 発火 | #16 followUser |
+| business rule の帰属 | service は low-level、rule (self-follow 禁止等) は usecase の `HTTPException` で | #16 followUser |
+| side effect entity のライフサイクル | 関係 entity と別 (follow 削除でも通知履歴は残す)、cascade は関係 entity のみ | #16 follows/notifications |
