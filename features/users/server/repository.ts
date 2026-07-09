@@ -10,6 +10,15 @@ export const usersRepository = {
     const [row] = await db.select().from(users).where(eq(users.id, id)).limit(1);
     return row ?? null;
   },
+  // handle (unique) で 1 件取得。無ければ null。
+  async findByHandle(handle: string): Promise<StoredUser | null> {
+    const [row] = await db
+      .select()
+      .from(users)
+      .where(eq(users.handle, handle))
+      .limit(1);
+    return row ?? null;
+  },
   // 複数 id を 1 クエリで取得 (enrichMany の N+1 回避用)。
   async findByIds(ids: string[]): Promise<StoredUser[]> {
     if (ids.length === 0) return [];

@@ -18,4 +18,9 @@ export const usersService = {
     const row = await usersRepository.findById(id);
     return row ? toWire(row) : null;
   },
+  // handle で 1 件取得。存在しなければ null。
+  async getByHandle(handle: string): Promise<User | null> {
+    const row = await usersRepository.findByHandle(handle);
+    return row ? toWire(row) : null;
+  },
 };

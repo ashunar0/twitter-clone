@@ -38,9 +38,14 @@ export const tweetsService = {
     });
     return toWire(row);
   },
-  // list: 直近 tweets に author summary + likeState を付けて返す (cross-domain read model)。
-  async list(currentUserId: string): Promise<TweetsListResponseWire> {
-    const rows = await tweetsRepository.findRecent();
+  // list: 直近 tweets (or 特定 author の) に author summary + likeState を付けて返す。
+  async list(
+    currentUserId: string,
+    filter?: { authorId?: string },
+  ): Promise<TweetsListResponseWire> {
+    const rows = filter?.authorId
+      ? await tweetsRepository.findByAuthorId(filter.authorId)
+      : await tweetsRepository.findRecent();
     const tweetIds = rows.map((r) => r.id);
     const authorIds = [...new Set(rows.map((r) => r.authorId))];
 
