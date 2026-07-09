@@ -14,12 +14,12 @@
     "allowImportingTsExtensions": false,
     "verbatimModuleSyntax": true,
     "noEmit": true,
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@features/*": ["features/*"]
+      "@/*": ["./src/*"],
+      "@features/*": ["./features/*"],
+      "@server/*": ["./server/*"]
     },
     "types": ["vite/client"]
   },
-  "include": ["src", "features", "app.d.ts"]
+  "include": ["src", "features", "server/app.ts", "app.d.ts"]
 }

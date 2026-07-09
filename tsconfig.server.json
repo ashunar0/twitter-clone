@@ -12,10 +12,9 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
     "outDir": "./dist/server",
-    "baseUrl": ".",
     "paths": {
-      "@server/*": ["server/*"],
-      "@features/*": ["features/*"]
+      "@server/*": ["./server/*"],
+      "@features/*": ["./features/*"]
     },
     "types": ["node"]
   },
