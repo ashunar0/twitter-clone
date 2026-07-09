@@ -6,19 +6,24 @@
 
 ---
 
-## 3 層 (route → service → repository → db)
+## 3 層 + usecase (route → [usecase →] service → repository → db)
 
 ```
 features/<domain>/server/
   ├─ table.ts          ← Drizzle テーブル定義 (schema)
   ├─ repository.ts     ← Drizzle 薄ラッパ (DB access)
   ├─ service.ts        ← 業務ロジック + wire 変換 + enrichment
+  ├─ usecases/         ← cross-feature orchestration (関数 1 個につき 1 ファイル)
+  │  └─ <verb><Entity>.ts
   └─ index.ts          ← Hono sub-app (route 定義)
 ```
 
-- **route** は service を呼ぶ、**service** は repository を呼ぶ、**repository** は Drizzle を呼ぶ
-- 単方向 DAG。逆流禁止 (repository が service を呼ばない、etc)
-- **service → 別 feature の service は禁止**。cross-feature の read が要る時は **別 feature の repository** を直接呼ぶ (詳細は「cross-domain」節)
+- **route** は service (単一 feature 内で完結する時) または usecase (cross-feature orchestration が要る時) を呼ぶ
+- **service** は自 feature の repository と、read enrichment 目的で **別 feature の repository** を呼ぶ
+- **repository** は自 feature の Drizzle table のみ触る
+- 単方向 DAG。逆流禁止
+
+**Clean / Onion Architecture の Application Service (Interactor) 層に相当。**
 
 ## サブ app のルール (hono-feature 準拠、絶対に破らない)
 
@@ -94,16 +99,22 @@ export const <plural>Service = {
 - **enrichment** (join 相当の後処理) は **`enrichMany`** で 1 クエリ + Map 変換して N+1 回避
   - 個別行ごとに他 feature の repository を叩かない
 
-## Cross-domain の扱い
+## Cross-feature access ルール
 
-### 原則: cross-domain 合成は BE endpoint がやる
+| パターン | 手段 | 例 |
+|---|---|---|
+| **Read enrichment** (join 相当の後付け) | service → 別 feature の **repository** | tweets list に author summary を混ぜる |
+| **Write orchestration** (副作用複数 feature 跨ぎ) | route → **usecase** → 複数 service | tweet 作成時に notification も発火 |
+| **単一 feature 完結** の read / write | route → 自 feature の service | 通常はこれ |
 
-「Tweet + author」の合成が欲しい → **owning feature (tweets) の endpoint がまとめて返す** (read model)。
+**硬い禁止:**
+- **service → 別 feature の service** — 必要になったら usecase 層を作る
+- **`features/<A>/type.ts` が `features/<B>/type.ts` を import しない** — cross-domain 合成 shape は owning feature の `schema.ts` に inline object で書く
+- **repository → 別 feature の何か** — repository は自 feature の table しか触らない
 
-- FE で domain 型を合成する構造は原則作らない
-- 合成 shape は **owning feature の schema.ts に wire 型として置く**、foreign データは inline object shape で書く (相手の型を import しない)
+### Read enrichment pattern (BE endpoint が cross-domain 合成)
 
-### 実装 pattern
+「Tweet + author」の合成が欲しい → **owning feature (tweets) の endpoint がまとめて返す** (read model)。FE で domain 型を合成する構造は原則作らない。
 
 `features/tweets/server/service.ts` の list:
 ```ts
@@ -127,11 +138,51 @@ async list(): Promise<TweetsListWire> {
 }
 ```
 
-### 硬い禁止
+### Usecase pattern (write orchestration)
 
-- **`features/<A>/type.ts` が `features/<B>/type.ts` を import しない**
-- **service → 別 feature の service を呼ばない** (business rule が二重になる、DAG が崩れる)
-- **repository → 別 feature の何かを呼ばない** (repository は自 feature の table しか触らない)
+複数 feature の service を叩く write 処理は、owning feature の `server/usecases/` に **関数 1 個 = ファイル 1 個**で書く。
+
+配置と命名:
+```
+features/<owner>/server/usecases/
+  └─ <verb><Entity>.ts    ← ファイル名 == 関数名 (camelCase)
+```
+
+例 (tweet 作成 → notification 発火が要る場合、想像):
+```ts
+// features/tweets/server/usecases/createTweet.ts
+
+// tweet を作成し、mention 対象がいれば notification を発火する。
+export async function createTweet(
+  input: CreateTweetWire,
+  currentUserId: string,
+): Promise<Tweet> {
+  const tweet = await tweetsService.create(input, currentUserId);
+  const mentioned = extractMentions(input.body);
+  if (mentioned.length > 0) {
+    await notificationsService.notifyMentions(tweet.id, mentioned);
+  }
+  return tweet;
+}
+```
+
+- **ファイル 1 個 = 関数 1 個**、export はデフォルトでなく named
+- ファイル名 (`createTweet.ts`) と関数名 (`createTweet`) を必ず一致させる
+- **usecase は他 feature の service を import してよい** (このためだけの層)
+- **service は他 feature の service を import しない** — orchestration が要る時は usecase を切る
+- **route は service か usecase のどちらかを呼ぶ**、両方は混ぜない (責務が曖昧になる)
+
+### 判断フロー
+
+```
+このロジックは cross-feature の副作用を伴う？
+  ├─ Yes → usecase
+  └─ No  → service (単一 feature 完結)
+
+このロジックは他 feature の read が要る？
+  ├─ Yes (join 的) → service が他 feature の repository を read
+  └─ 他 feature の service が要る？ → 上と同じで usecase
+```
 
 ## Mock auth の pattern
 
