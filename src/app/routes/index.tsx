@@ -1,14 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { TimelineScreen } from "@/screens/timeline/ui/TimelineScreen";
 
 export const Route = createFileRoute("/")({
-  component: HomeScreen,
+  component: TimelineScreen,
 });
-
-function HomeScreen() {
-  return (
-    <main style={{ padding: 24, fontFamily: "system-ui" }}>
-      <h1>Twitter Clone</h1>
-      <p>scaffolding OK なのだ</p>
-    </main>
-  );
-}
