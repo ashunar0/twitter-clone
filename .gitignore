@@ -5,3 +5,6 @@ dist
 .env
 .env.local
 src/app/routeTree.gen.ts
+local.db
+local.db-journal
+
