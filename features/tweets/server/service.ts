@@ -1,5 +1,10 @@
-import type { Tweet, TweetsData } from "../type";
-import type { AuthorSummary, CreateTweetWire, LikeStateWire } from "../schema";
+import type { Tweet } from "../type";
+import type {
+  AuthorSummary,
+  CreateTweetWire,
+  LikeStateWire,
+  TweetsListResponseWire,
+} from "../schema";
 import { usersRepository, type StoredUser } from "../../users/server/repository";
 import { likesRepository } from "../../likes/server/repository";
 import { tweetsRepository, type StoredTweet } from "./repository";
@@ -34,7 +39,7 @@ export const tweetsService = {
     return toWire(row);
   },
   // list: 直近 tweets に author summary + likeState を付けて返す (cross-domain read model)。
-  async list(currentUserId: string): Promise<TweetsData> {
+  async list(currentUserId: string): Promise<TweetsListResponseWire> {
     const rows = await tweetsRepository.findRecent();
     const tweetIds = rows.map((r) => r.id);
     const authorIds = [...new Set(rows.map((r) => r.authorId))];

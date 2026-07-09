@@ -262,7 +262,8 @@ features/<domain>/   (ドメイン層、UI とは独立軸)
 5. **features → src/{screens, widgets, shared} 禁止** (逆依存)
 6. **`features/<domain>/client/rpc.ts` は同 features 内の queries.ts / mutations.ts 以外から import 禁止**
 7. **`features/<A>/client` は `features/<B>/client` を import しない** (features 間 client 依存禁止)
-   - **例外 (Query key invalidation)**: `features/<A>/client/mutations.ts` は `features/<B>/client/queries.ts` の queryKey factory (`<B>Keys`) を **invalidation 目的でのみ** import 可。hook / rpc / 変換関数の import は禁止のまま
+   - **例外 (cross-domain cache 一貫性)**: `features/<A>/client/mutations.ts` は `features/<B>/client/queries.ts` の queryKey factory (`<B>Keys`) を **`invalidateQueries` および `setQueryData` 目的でのみ** import 可。hook / rpc / 変換関数の import は禁止のまま
+   - 型 (`TweetsData` 等) は `features/<B>/type.ts` から import 可 — mutation が別 domain の cache 型を optimistic 操作する為には避けられない。**mutation ⇔ queries factory + type、以外の依存は張らない**
 8. **widgets → features/client hook 呼び出しは OK** — widget は「data fetch を含めて跨ぎ画面で自己完結する UI」
 
 **import 可否マトリックス:**
@@ -510,7 +511,8 @@ export type TweetsListResponseWire = z.infer<typeof tweetsListResponseSchema>;
 
 - **#4a 時点の cross-domain read model**: `tweetsListResponseSchema` の `authorSummaries: z.record(...)` inline で綺麗に嵌まった。FE 側は `data.authorSummaries[tweet.authorId]` の lookup で消費。User 型を tweets 側に一切 import しなくて済んだ
 - **#4b 時点の optimistic pattern**: `useMutation` の hook 引数に scope (currentUser)、mutationFn 引数に mutation vars (input) を分離するパターンで綺麗に書けた。`onMutate` で snapshot → cache 先頭に optimistic entry 挿入 → `onError` rollback → `onSuccess` で optimistic を server 応答で差し替え、が典型フロー
-- **観察予定**: wire==domain な段階では `type <X> = <X>Wire` alias で足りている。Set / Map 変換が必要になる場面 (like / reaction / notification 既読等) でどこが曲がるかを確認したい
+- **#14 で確定した wire→cache 変換パターン**: `features/tweets/type.ts` に `LikeState = { counts, mineIds: Set<string> }` を独立定義、`features/tweets/client/queries.ts` に `snapshotToCache(res)` converter を置き、`useTweetsQuery` の `queryFn` 内で `snapshotToCache(await tweetsRpc.list())` を挟む。BE service の返り値型は wire (`TweetsListResponseWire`)、FE cache 型は `TweetsData`。**mutation は Set を直接操作**する (`new Set(prev.likeState.mineIds)` して add/delete)
+- **#14 で確定した cross-domain mutation**: `features/likes/client/mutations.ts` の `useToggleLikeMutation` が `features/tweets/client/queries` の `tweetsKeys` と `features/tweets/type` の `TweetsData` を import。**mutation 側から queryKey factory + cache 型を import は許可、hook/rpc/converter は禁止**、という 3 者境界で運用
 - **観察予定**: 現状 loader を 1 つも切っていない (timeline は component 内 useQuery で開始)。detail 系ページを追加した時に「loader ありなし」でどっちが素直か検証したい
 
 ---

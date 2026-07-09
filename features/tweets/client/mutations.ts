@@ -35,7 +35,7 @@ export function useCreateTweetMutation(currentUser: User) {
         const base: TweetsData = prev ?? {
           tweets: [],
           authorSummaries: {},
-          likeState: { counts: {}, mineIds: [] },
+          likeState: { counts: {}, mineIds: new Set() },
         };
         return {
           ...base,
