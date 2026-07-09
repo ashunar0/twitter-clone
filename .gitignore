@@ -7,4 +7,5 @@ dist
 src/app/routeTree.gen.ts
 local.db
 local.db-journal
+.playwright-mcp
 
