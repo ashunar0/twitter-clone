@@ -1,5 +1,5 @@
 import { useTweetsQuery } from "@features/tweets/client/queries";
-import { TweetItem } from "@/widgets/tweet-item/ui/TweetItem";
+import { TweetItem } from "@/widgets/tweet-item/TweetItem";
 import { TweetComposer } from "./TweetComposer";
 
 // public timeline 画面。read model (tweets + authorSummaries + likeState) を表示する。

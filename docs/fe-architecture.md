@@ -248,6 +248,24 @@ src/shared/      (UI primitive、hisui-ui 生成先)
 features/<domain>/   (ドメイン層、UI とは独立軸)
 ```
 
+### screens / widgets slice 内はフラット
+
+**UI が主役の場所に `ui/` サブディレクトリは切らない。**
+
+```
+src/widgets/<name>/
+  ├─ <Widget>.tsx           ← 主 component (複数コンポーネントに分けたければ同階層に並べる)
+  └─ (必要になったら) loader.ts / hooks.ts / type.ts
+
+src/screens/<slice>/
+  ├─ <Screen>.tsx           ← 画面本体 (screen-local な小コンポーネントも同階層に並べる)
+  ├─ (必要になったら) loader.ts / hooks.ts / type.ts
+```
+
+- **`ui/` は挟まない** — screens/widgets そのものが「UI が主役」の層だから、`ui/` は重複情報になる
+- 分けるのは横並びの機能軸 (`loader.ts`, `<name>.hooks.ts`, `type.ts`) だけ — 種類ごとに folder を切らない
+- component が肥大化したら **同階層に並べて分割** する (`<Screen>.tsx` + `<ScreenHeader>.tsx` + ...)、`components/` みたいな汎用箱は作らない
+
 **大原則:**
 - UI 層は上→下のみ import 可
 - UI 層 → features は OK (widgets 以上は features/{client, schema, type, lib} を自由に触れる)
@@ -290,7 +308,7 @@ features/<domain>/   (ドメイン層、UI とは独立軸)
 - `useState` / `useEffect` を持たない
 - 「別画面で流用しても同じ意味になる」
 
-### UI 層 (widgets/ui or screens/ui) の hook = UX orchestration
+### UI 層 (widgets / screens) の hook = UX orchestration
 - modal 開閉、form flow、wizard
 - `useState` / `useEffect` で UX state 管理
 - localStorage / URL / DOM / focus 等の browser 事情
@@ -414,7 +432,7 @@ export type ProfileDetailLoaderData = Awaited<ReturnType<typeof loadProfileDetai
 // src/app/routes/profile.$handle.tsx
 import { createFileRoute } from "@tanstack/react-router";
 import { loadProfileDetail } from "@/screens/profile-detail/loader";
-import { ProfileDetailScreen } from "@/screens/profile-detail/ui/ProfileDetailScreen";
+import { ProfileDetailScreen } from "@/screens/profile-detail/ProfileDetailScreen";
 
 export const Route = createFileRoute("/profile/$handle")({
   loader: ({ context: { queryClient }, params: { handle } }) =>

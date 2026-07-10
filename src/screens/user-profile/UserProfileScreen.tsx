@@ -1,8 +1,8 @@
 import { useUserByHandleQuery } from "@features/users/client/queries";
 import { useUserTweetsQuery } from "@features/tweets/client/queries";
 import { useFollowCountsQuery } from "@features/follows/client/queries";
-import { TweetItem } from "@/widgets/tweet-item/ui/TweetItem";
-import { FollowButton } from "@/widgets/follow-button/ui/FollowButton";
+import { TweetItem } from "@/widgets/tweet-item/TweetItem";
+import { FollowButton } from "@/widgets/follow-button/FollowButton";
 
 // user profile 画面。loader で prefetch 済みの user / tweets / follow 情報を cache から読む。
 export function UserProfileScreen({ handle }: { handle: string }) {
