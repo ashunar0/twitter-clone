@@ -7,6 +7,8 @@ import { withCurrentUser, type AuthVariables } from "../../../server/lib/current
 import { tweetsService } from "./service";
 import { decodeTweetCursor } from "./cursor";
 import { createTweet } from "./usecases/createTweet";
+import { retweetTweet } from "./usecases/retweetTweet";
+import { unretweetTweet } from "./usecases/unretweetTweet";
 
 // list の query param 検証。authorId で filter 可、cursor で seek pagination。
 const listQuerySchema = z.object({
@@ -42,6 +44,22 @@ const tweets = new Hono<{ Variables: AuthVariables }>()
     const db = c.get("db");
     const tweet = await createTweet(db, input, currentUser.id);
     return c.json(tweet, 201);
+  })
+  // POST /api/tweets/:id/retweet — current user が元 tweet を RT する (冪等)。
+  .post("/:id/retweet", async (c) => {
+    const id = c.req.param("id");
+    const currentUser = c.get("currentUser");
+    const db = c.get("db");
+    await retweetTweet(db, id, currentUser.id);
+    return c.json({ ok: true }, 201);
+  })
+  // DELETE /api/tweets/:id/retweet — current user の RT を外す (冪等、通知履歴は残す)。
+  .delete("/:id/retweet", async (c) => {
+    const id = c.req.param("id");
+    const currentUser = c.get("currentUser");
+    const db = c.get("db");
+    await unretweetTweet(db, id, currentUser.id);
+    return c.body(null, 204);
   });
 
 export default tweets;

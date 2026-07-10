@@ -1,0 +1,2 @@
+ALTER TABLE `tweets` ADD `retweet_of_id` text REFERENCES tweets(id);--> statement-breakpoint
+CREATE UNIQUE INDEX `tweets_retweet_of_id_author_id_uniq` ON `tweets` (`retweet_of_id`,`author_id`) WHERE "tweets"."retweet_of_id" IS NOT NULL;

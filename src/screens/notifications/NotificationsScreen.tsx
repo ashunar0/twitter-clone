@@ -84,5 +84,6 @@ function describe(kind: string): string {
   if (kind === "follow") return "started following you.";
   if (kind === "reply") return "replied to your tweet.";
   if (kind === "mention") return "mentioned you in a tweet.";
+  if (kind === "retweet") return "retweeted your tweet.";
   return `did ${kind}.`;
 }

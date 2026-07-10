@@ -18,15 +18,27 @@ export function TimelineScreen() {
       <h1 className="mb-4 text-2xl font-bold">Timeline</h1>
       <TweetComposer />
       <ul className="flex flex-col gap-3">
-        {data.tweets.map((tweet) => (
-          <TweetItem
-            key={tweet.id}
-            tweet={tweet}
-            author={data.authorSummaries[tweet.authorId]}
-            likeCount={data.likeState.counts[tweet.id] ?? 0}
-            mine={data.likeState.mineIds.has(tweet.id)}
-          />
-        ))}
+        {data.tweets.map((tweet) => {
+          // retweet 行なら元 tweet を display、行の author は "retweeter" として header に。
+          const isRt = tweet.retweetOfId != null;
+          const original = isRt ? data.originalTweets[tweet.retweetOfId!] : null;
+          const displayTweet = original?.tweet ?? tweet;
+          const displayAuthor = original?.author ?? data.authorSummaries[tweet.authorId];
+          const retweetedBy = isRt ? data.authorSummaries[tweet.authorId] : undefined;
+          const displayId = displayTweet.id;
+          return (
+            <TweetItem
+              key={tweet.id}
+              tweet={displayTweet}
+              author={displayAuthor}
+              retweetedBy={retweetedBy}
+              likeCount={data.likeState.counts[displayId] ?? 0}
+              mineLike={data.likeState.mineIds.has(displayId)}
+              retweetCount={data.retweetState.counts[displayId] ?? 0}
+              mineRetweet={data.retweetState.mineIds.has(displayId)}
+            />
+          );
+        })}
       </ul>
       <InfiniteScrollSentinel
         onVisible={() => fetchNextPage()}

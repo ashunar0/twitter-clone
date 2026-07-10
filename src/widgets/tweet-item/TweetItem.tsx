@@ -1,10 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
-import { Heart, MessageCircle } from "lucide-react";
+import { Heart, MessageCircle, Repeat2 } from "lucide-react";
 import type { Tweet } from "@features/tweets/type";
 import type { AuthorSummary } from "@features/tweets/schema";
 import { useToggleLikeMutation } from "@features/likes/client/mutations";
-import { useCreateTweetMutation } from "@features/tweets/client/mutations";
+import {
+  useCreateTweetMutation,
+  useToggleRetweetMutation,
+} from "@features/tweets/client/mutations";
 import { useCurrentProfileQuery } from "@features/profiles/client/queries";
 import { Button } from "@/shared/ui/button";
 
@@ -40,25 +43,38 @@ function renderTweetBody(body: string) {
 
 const MAX_LENGTH = 280;
 
-// 1 tweet + author + like + reply を並べる item。timeline / profile 両画面で共有する widget。
-// data-fetch を持たず props で受ける (widget 規約: 内部で mutation は起動可、query は上位で)。
-// current user 取得だけは reply 発火に必須なので widget 内 query として許容。
+// 1 tweet + author + like/retweet/reply を並べる item。timeline / profile 両画面で共有する widget。
+// retweet 表示は「retweetedBy がヘッダー、tweet/author は元 tweet 側」で受ける (screen 側で解決済み)。
+// like / retweet の count / mine は元 tweet id に対する値を受ける (=display 対象の集計)。
 export function TweetItem({
   tweet,
   author,
+  retweetedBy,
   likeCount,
-  mine,
+  mineLike,
+  retweetCount,
+  mineRetweet,
 }: {
   tweet: Tweet;
   author: AuthorSummary | undefined;
+  retweetedBy?: AuthorSummary;
   likeCount: number;
-  mine: boolean;
+  mineLike: boolean;
+  retweetCount: number;
+  mineRetweet: boolean;
 }) {
   const toggleLike = useToggleLikeMutation();
+  const toggleRetweet = useToggleRetweetMutation();
   const [replying, setReplying] = useState(false);
 
   return (
     <li className="rounded-lg border border-neutral-200 p-4">
+      {retweetedBy ? (
+        <div className="mb-2 flex items-center gap-1 text-xs text-neutral-500">
+          <Repeat2 size={14} />
+          <span>{retweetedBy.name} が retweet</span>
+        </div>
+      ) : null}
       <div className="mb-1 text-sm text-neutral-600">
         <span className="font-semibold text-neutral-900">
           {author?.name ?? "unknown"}
@@ -82,14 +98,32 @@ export function TweetItem({
           <button
             type="button"
             onClick={() =>
-              toggleLike.mutate({ tweetId: tweet.id, nextMine: !mine })
+              toggleRetweet.mutate({
+                originalId: tweet.id,
+                nextMine: !mineRetweet,
+              })
             }
-            aria-label={mine ? "Unlike" : "Like"}
+            aria-label={mineRetweet ? "Unretweet" : "Retweet"}
             className={`flex items-center gap-1 text-sm ${
-              mine ? "text-pink-600" : "text-neutral-500 hover:text-pink-600"
+              mineRetweet
+                ? "text-emerald-600"
+                : "text-neutral-500 hover:text-emerald-600"
             }`}
           >
-            <Heart size={16} fill={mine ? "currentColor" : "none"} />
+            <Repeat2 size={16} />
+            <span>{retweetCount}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              toggleLike.mutate({ tweetId: tweet.id, nextMine: !mineLike })
+            }
+            aria-label={mineLike ? "Unlike" : "Like"}
+            className={`flex items-center gap-1 text-sm ${
+              mineLike ? "text-pink-600" : "text-neutral-500 hover:text-pink-600"
+            }`}
+          >
+            <Heart size={16} fill={mineLike ? "currentColor" : "none"} />
             <span>{likeCount}</span>
           </button>
         </div>

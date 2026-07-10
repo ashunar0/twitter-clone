@@ -26,15 +26,27 @@ export type TweetsPagesCache = InfiniteData<TweetsListResponseWire, string | nul
 function selectFlattened(data: TweetsPagesCache): TweetsData {
   const tweets: Tweet[] = [];
   const authorSummaries: Record<string, AuthorSummary> = {};
-  const counts: Record<string, number> = {};
-  const mineIds = new Set<string>();
+  const likeCounts: Record<string, number> = {};
+  const likeMineIds = new Set<string>();
+  const retweetCounts: Record<string, number> = {};
+  const retweetMineIds = new Set<string>();
+  const originalTweets: TweetsData["originalTweets"] = {};
   for (const page of data.pages) {
     tweets.push(...page.tweets);
     Object.assign(authorSummaries, page.authorSummaries);
-    Object.assign(counts, page.likeState.counts);
-    for (const id of page.likeState.mineIds) mineIds.add(id);
+    Object.assign(likeCounts, page.likeState.counts);
+    for (const id of page.likeState.mineIds) likeMineIds.add(id);
+    Object.assign(retweetCounts, page.retweetState.counts);
+    for (const id of page.retweetState.mineIds) retweetMineIds.add(id);
+    Object.assign(originalTweets, page.originalTweets);
   }
-  return { tweets, authorSummaries, likeState: { counts, mineIds } };
+  return {
+    tweets,
+    authorSummaries,
+    likeState: { counts: likeCounts, mineIds: likeMineIds },
+    retweetState: { counts: retweetCounts, mineIds: retweetMineIds },
+    originalTweets,
+  };
 }
 
 // infiniteQueryOptions: loader の ensureInfiniteQueryData / useInfiniteQuery で共有。

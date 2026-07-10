@@ -3,6 +3,8 @@ import type {
   AuthorSummary,
   CreateTweetWire,
   LikeStateWire,
+  OriginalTweetWire,
+  RetweetStateWire,
   TweetsListResponseWire,
 } from "../schema";
 import type { DB } from "../../../server/lib/db";
@@ -25,6 +27,7 @@ function toWire(row: StoredTweet): Tweet {
     id: row.id,
     authorId: row.authorId,
     parentId: row.parentId,
+    retweetOfId: row.retweetOfId,
     body: row.body,
     createdAt: row.createdAt,
   };
@@ -40,27 +43,29 @@ function toAuthorSummary(row: StoredProfileWithUser): AuthorSummary {
 }
 
 export const tweetsService = {
-  // create: current user 名義で 1 件作成する。parentId 有りなら reply。id / createdAt は server 側で自動採番。
+  // create: current user 名義で 1 件作成する。parentId 有りなら reply、retweetOfId 有りなら RT。
+  // id / createdAt は server 側で自動採番。
   async create(
     db: DB,
-    input: CreateTweetWire,
+    input: CreateTweetWire & { retweetOfId?: string | null },
     currentUserId: string,
   ): Promise<Tweet> {
     const row = await tweetsRepository.insert(db, {
       id: crypto.randomUUID(),
       authorId: currentUserId,
       parentId: input.parentId ?? null,
+      retweetOfId: input.retweetOfId ?? null,
       body: input.body,
     });
     return toWire(row);
   },
-  // findById: usecase から親 tweet の存在確認に使う。
+  // findById: usecase から親 / RT 元 tweet の存在確認に使う。
   async findById(db: DB, id: string): Promise<Tweet | null> {
     const row = await tweetsRepository.findById(db, id);
     return row ? toWire(row) : null;
   },
   // list: 直近 tweets (or 特定 author の) を 1 page 取得、cursor で seek pagination する。
-  // 1 page 分だけ tweets + author summary + likeState + nextCursor を返す (page 跨ぎの merge は FE 側)。
+  // 1 page に含まれる RT tweet の元 tweet + author を originalTweets map で解決 (page 外も含む)。
   async list(
     db: DB,
     currentUserId: string,
@@ -70,24 +75,70 @@ export const tweetsService = {
       ? await tweetsRepository.findByAuthorId(db, filter.authorId, filter.cursor)
       : await tweetsRepository.findRecent(db, filter?.cursor);
     const tweetIds = rows.map((r) => r.id);
+    // 元 tweet 解決対象: RT 行の retweetOfId + 通常 tweet 自身 (「私が RT した？」の対象は "元" tweet id なので通常 tweet も対象)。
+    const originalIds = [
+      ...new Set(
+        rows.flatMap((r) => (r.retweetOfId ? [r.retweetOfId] : [r.id])),
+      ),
+    ];
+    // RT 元 tweet を実際に読む対象は「同 page に含まれない」ものだけ。含まれてれば authorSummaries と一緒に既に持ってる。
+    const rowIds = new Set(tweetIds);
+    const missingOriginalIds = originalIds.filter((id) => !rowIds.has(id));
+
     const authorIds = [...new Set(rows.map((r) => r.authorId))];
 
-    // 別 feature (profiles, likes) の repository を read-only で使う。service→service は禁止規約。
-    const [profileRows, mineIds, countsMap] = await Promise.all([
-      profilesRepository.findByUserIds(db, authorIds),
-      likesRepository.findMineIds(db, tweetIds, currentUserId),
-      likesRepository.countByTweetIds(db, tweetIds),
-    ]);
+    // page 外の RT 元 tweet を fetch。author は fetch 後に追加解決する。
+    const originalRows = await tweetsRepository.findByIds(
+      db,
+      missingOriginalIds,
+    );
+    // 元 tweet の author も authorSummaries に足す必要がある。
+    for (const o of originalRows) authorIds.push(o.authorId);
+
+    // like は "display 対象" (通常 tweet は自身、RT 行は元 tweet) について集計する。
+    // したがって likeState の key は tweetIds ∪ originalIds = displayIds。
+    const displayIds = [...new Set([...tweetIds, ...originalIds])];
+
+    // 別 feature (profiles, likes) + 自 feature の cross reads を並列。
+    const [profileRows, likeMineIds, likeCountsMap, retweetCountsMap, retweetMineIds] =
+      await Promise.all([
+        profilesRepository.findByUserIds(db, [...new Set(authorIds)]),
+        likesRepository.findMineIds(db, displayIds, currentUserId),
+        likesRepository.countByTweetIds(db, displayIds),
+        tweetsRepository.countRetweetsByOriginalIds(db, originalIds),
+        tweetsRepository.findMineRetweetOriginalIds(
+          db,
+          originalIds,
+          currentUserId,
+        ),
+      ]);
 
     const authorSummaries: Record<string, AuthorSummary> = {};
     for (const row of profileRows) {
       authorSummaries[row.profile.userId] = toAuthorSummary(row);
     }
 
-    const counts: Record<string, number> = {};
-    for (const id of tweetIds) counts[id] = countsMap.get(id) ?? 0;
+    const likeCounts: Record<string, number> = {};
+    for (const id of displayIds) likeCounts[id] = likeCountsMap.get(id) ?? 0;
+    const likeState: LikeStateWire = { counts: likeCounts, mineIds: likeMineIds };
 
-    const likeState: LikeStateWire = { counts, mineIds };
+    const retweetCounts: Record<string, number> = {};
+    for (const id of originalIds) retweetCounts[id] = retweetCountsMap.get(id) ?? 0;
+    const retweetState: RetweetStateWire = {
+      counts: retweetCounts,
+      mineIds: retweetMineIds,
+    };
+
+    // originalTweets: 元 tweet + author の bundle。同 page 内 / 外の両方を含める (FE の解決を単純化)。
+    const originalTweets: Record<string, OriginalTweetWire> = {};
+    const rowById = new Map(rows.map((r) => [r.id, r]));
+    for (const id of originalIds) {
+      const src = rowById.get(id) ?? originalRows.find((o) => o.id === id);
+      if (!src) continue;
+      const author = authorSummaries[src.authorId];
+      if (!author) continue;
+      originalTweets[id] = { tweet: toWire(src), author };
+    }
 
     // page が満杯なら次があると判断、最後の row を cursor に。
     // 端でぴったり終わる corner case は次 fetch が空返しで自然に閉じる。
@@ -99,6 +150,8 @@ export const tweetsService = {
       tweets: rows.map(toWire),
       authorSummaries,
       likeState,
+      retweetState,
+      originalTweets,
       nextCursor,
     };
   },

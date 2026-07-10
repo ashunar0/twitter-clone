@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import type { DB } from "../../../server/lib/db";
 import {
   mentions,
@@ -57,16 +57,83 @@ export const tweetsRepository = {
       .orderBy(desc(tweets.createdAt), desc(tweets.id))
       .limit(TWEETS_PAGE_SIZE);
   },
-  // 単体取得。reply usecase で親 tweet の存在確認に使う。
+  // 単体取得。reply / retweet usecase で対象 tweet の存在確認に使う。
   async findById(db: DB, id: string): Promise<StoredTweet | null> {
     const [row] = await db.select().from(tweets).where(eq(tweets.id, id));
     return row ?? null;
+  },
+  // 複数 id を 1 クエリで取得 (originalTweets 解決 = RT 元 tweet の N+1 回避)。
+  async findByIds(db: DB, ids: string[]): Promise<StoredTweet[]> {
+    if (ids.length === 0) return [];
+    return db.select().from(tweets).where(inArray(tweets.id, ids));
   },
   // 1 件挿入して、挿入後の row を返す。
   async insert(db: DB, row: NewTweetRow): Promise<StoredTweet> {
     const [inserted] = await db.insert(tweets).values(row).returning();
     if (!inserted) throw new Error("insert tweet failed");
     return inserted;
+  },
+  // current user の retweet row (retweetOfId=originalId, authorId=userId) を検索。toggle の冪等判定に使う。
+  async findRetweetOf(
+    db: DB,
+    originalId: string,
+    userId: string,
+  ): Promise<StoredTweet | null> {
+    const [row] = await db
+      .select()
+      .from(tweets)
+      .where(
+        and(eq(tweets.retweetOfId, originalId), eq(tweets.authorId, userId)),
+      )
+      .limit(1);
+    return row ?? null;
+  },
+  // 1 件 tweet を id 指定で削除 (unretweet で使う)。cascade で mentions / likes も消える。
+  async deleteById(db: DB, id: string): Promise<void> {
+    await db.delete(tweets).where(eq(tweets.id, id));
+  },
+  // 元 tweetIds について、それぞれ何回 RT されたかの map を返す (N+1 回避)。
+  // group by retweetOfId、null (通常 tweet) は除外。
+  async countRetweetsByOriginalIds(
+    db: DB,
+    originalIds: string[],
+  ): Promise<Map<string, number>> {
+    if (originalIds.length === 0) return new Map();
+    const rows = await db
+      .select({
+        retweetOfId: tweets.retweetOfId,
+        count: sql<number>`count(*)`,
+      })
+      .from(tweets)
+      .where(
+        and(
+          isNotNull(tweets.retweetOfId),
+          inArray(tweets.retweetOfId, originalIds),
+        ),
+      )
+      .groupBy(tweets.retweetOfId);
+    return new Map(
+      rows.map((r) => [r.retweetOfId ?? "", Number(r.count)] as const),
+    );
+  },
+  // 元 tweetIds のうち、current user が RT 済みのもの (retweetOfId 側の id) を返す。like と同じ「mine」form。
+  async findMineRetweetOriginalIds(
+    db: DB,
+    originalIds: string[],
+    userId: string,
+  ): Promise<string[]> {
+    if (originalIds.length === 0) return [];
+    const rows = await db
+      .select({ retweetOfId: tweets.retweetOfId })
+      .from(tweets)
+      .where(
+        and(
+          eq(tweets.authorId, userId),
+          isNotNull(tweets.retweetOfId),
+          inArray(tweets.retweetOfId, originalIds),
+        ),
+      );
+    return rows.map((r) => r.retweetOfId ?? "").filter(Boolean);
   },
 };
 

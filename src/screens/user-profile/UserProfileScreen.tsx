@@ -73,15 +73,29 @@ export function UserProfileScreen({ handle }: { handle: string }) {
       ) : (
         <>
           <ul className="flex flex-col gap-3">
-            {tweets.tweets.map((tweet) => (
-              <TweetItem
-                key={tweet.id}
-                tweet={tweet}
-                author={tweets.authorSummaries[tweet.authorId]}
-                likeCount={tweets.likeState.counts[tweet.id] ?? 0}
-                mine={tweets.likeState.mineIds.has(tweet.id)}
-              />
-            ))}
+            {tweets.tweets.map((tweet) => {
+              const isRt = tweet.retweetOfId != null;
+              const original = isRt ? tweets.originalTweets[tweet.retweetOfId!] : null;
+              const displayTweet = original?.tweet ?? tweet;
+              const displayAuthor =
+                original?.author ?? tweets.authorSummaries[tweet.authorId];
+              const retweetedBy = isRt
+                ? tweets.authorSummaries[tweet.authorId]
+                : undefined;
+              const displayId = displayTweet.id;
+              return (
+                <TweetItem
+                  key={tweet.id}
+                  tweet={displayTweet}
+                  author={displayAuthor}
+                  retweetedBy={retweetedBy}
+                  likeCount={tweets.likeState.counts[displayId] ?? 0}
+                  mineLike={tweets.likeState.mineIds.has(displayId)}
+                  retweetCount={tweets.retweetState.counts[displayId] ?? 0}
+                  mineRetweet={tweets.retweetState.mineIds.has(displayId)}
+                />
+              );
+            })}
             {tweets.tweets.length === 0 && (
               <li className="text-neutral-500">まだ tweet がないのだ。</li>
             )}

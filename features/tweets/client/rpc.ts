@@ -26,4 +26,18 @@ export const tweetsRpc = {
     await throwIfNotOk(res);
     return (await res.json()) as TweetWire;
   },
+  // POST /api/tweets/:id/retweet — current user が元 tweet を RT (冪等)。
+  async retweet(originalId: string): Promise<void> {
+    const res = await rpcClient.api.tweets[":id"].retweet.$post({
+      param: { id: originalId },
+    });
+    await throwIfNotOk(res);
+  },
+  // DELETE /api/tweets/:id/retweet — current user の RT を外す (冪等)。
+  async unretweet(originalId: string): Promise<void> {
+    const res = await rpcClient.api.tweets[":id"].retweet.$delete({
+      param: { id: originalId },
+    });
+    await throwIfNotOk(res);
+  },
 };
