@@ -46,7 +46,7 @@ export function NotificationsScreen() {
   );
 }
 
-// 1 通知の表示。今は kind="follow" のみ対応、将来 like/reply/mention を追加。
+// 1 通知の表示。kind=follow/reply 対応、将来 like/mention を追加。
 function NotificationItem({
   notification,
   actor,
@@ -79,7 +79,9 @@ function NotificationItem({
   );
 }
 
+// kind に応じた 1 行文言。未対応 kind は生 kind を出して開発中に気付けるようにする。
 function describe(kind: string): string {
   if (kind === "follow") return "started following you.";
+  if (kind === "reply") return "replied to your tweet.";
   return `did ${kind}.`;
 }

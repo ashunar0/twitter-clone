@@ -5,8 +5,19 @@ import { useCreateTweetMutation } from "@features/tweets/client/mutations";
 
 const MAX_LENGTH = 280;
 
-// 投稿フォーム。current user が取れるまで disabled。
-export function TweetComposer() {
+// 投稿フォーム。parentId 有りなら reply、無しなら top-level tweet。
+// current user が取れるまで disabled、送信成功で textarea をクリア + optional onSubmitted 呼出。
+export function TweetComposer({
+  parentId,
+  onSubmitted,
+  placeholder,
+  submitLabel,
+}: {
+  parentId?: string;
+  onSubmitted?: () => void;
+  placeholder?: string;
+  submitLabel?: string;
+} = {}) {
   const currentUserQuery = useCurrentUserQuery();
   const currentUser = currentUserQuery.data;
   const createTweet = useCreateTweetMutation(currentUser!);
@@ -14,13 +25,18 @@ export function TweetComposer() {
   const [body, setBody] = useState("");
   const disabled = !currentUser || body.trim().length === 0 || createTweet.isPending;
 
-  // form submit を止めて mutation を発火、成功したら textarea をクリア。
+  // form submit を止めて mutation を発火、成功したら textarea をクリアして親に通知。
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (disabled || !currentUser) return;
     createTweet.mutate(
-      { body: body.trim() },
-      { onSuccess: () => setBody("") },
+      { body: body.trim(), parentId: parentId ?? null },
+      {
+        onSuccess: () => {
+          setBody("");
+          onSubmitted?.();
+        },
+      },
     );
   };
 
@@ -29,7 +45,11 @@ export function TweetComposer() {
       <textarea
         value={body}
         onChange={(e) => setBody(e.target.value)}
-        placeholder={currentUser ? "What's happening?" : "Loading…"}
+        placeholder={
+          currentUser
+            ? (placeholder ?? "What's happening?")
+            : "Loading…"
+        }
         maxLength={MAX_LENGTH}
         rows={3}
         disabled={!currentUser}
@@ -40,7 +60,7 @@ export function TweetComposer() {
           {body.length}/{MAX_LENGTH}
         </span>
         <Button type="submit" disabled={disabled} loading={createTweet.isPending}>
-          Tweet
+          {submitLabel ?? "Tweet"}
         </Button>
       </div>
       {createTweet.isError ? (

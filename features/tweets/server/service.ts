@@ -14,6 +14,7 @@ function toWire(row: StoredTweet): Tweet {
   return {
     id: row.id,
     authorId: row.authorId,
+    parentId: row.parentId,
     body: row.body,
     createdAt: row.createdAt,
   };
@@ -29,14 +30,20 @@ function toAuthorSummary(row: StoredUser): AuthorSummary {
 }
 
 export const tweetsService = {
-  // create: current user 名義で 1 件作成する。id / createdAt は server 側で自動採番。
+  // create: current user 名義で 1 件作成する。parentId 有りなら reply。id / createdAt は server 側で自動採番。
   async create(input: CreateTweetWire, currentUserId: string): Promise<Tweet> {
     const row = await tweetsRepository.insert({
       id: crypto.randomUUID(),
       authorId: currentUserId,
+      parentId: input.parentId ?? null,
       body: input.body,
     });
     return toWire(row);
+  },
+  // findById: usecase から親 tweet の存在確認に使う。
+  async findById(id: string): Promise<Tweet | null> {
+    const row = await tweetsRepository.findById(id);
+    return row ? toWire(row) : null;
   },
   // list: 直近 tweets (or 特定 author の) に author summary + likeState を付けて返す。
   async list(

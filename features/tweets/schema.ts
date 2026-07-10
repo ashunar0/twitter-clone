@@ -1,9 +1,10 @@
 import { z } from "zod";
 
-// tweet 単体の wire 形。
+// tweet 単体の wire 形。parentId は reply 元の tweet id、通常 tweet は null。
 export const tweetWireSchema = z.object({
   id: z.string(),
   authorId: z.string(),
+  parentId: z.string().nullable(),
   body: z.string(),
   createdAt: z.string(),
 });

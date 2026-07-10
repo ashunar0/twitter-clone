@@ -16,12 +16,16 @@ export function useCreateTweetMutation(currentUser: User) {
   return useMutation<Tweet, Error, CreateTweetWire, MutationContext>({
     mutationFn: (input) => tweetsRpc.create(input),
     onMutate: async (input) => {
+      // reply は timeline に混ざらないので optimistic 更新をスキップ。thread view 実装時に別 key で対応する。
+      if (input.parentId) return { snapshot: undefined };
+
       await queryClient.cancelQueries({ queryKey: listKey });
       const snapshot = queryClient.getQueryData<TweetsData>(listKey);
 
       const optimistic: Tweet = {
         id: `optimistic-${Date.now()}`,
         authorId: currentUser.id,
+        parentId: null,
         body: input.body,
         createdAt: new Date().toISOString(),
       };
@@ -56,6 +60,8 @@ export function useCreateTweetMutation(currentUser: User) {
       if (ctx?.snapshot) queryClient.setQueryData(listKey, ctx.snapshot);
     },
     onSuccess: (created) => {
+      // reply は timeline を触っていない (optimistic 挿入なし)、差し替え不要。
+      if (created.parentId) return;
       queryClient.setQueryData<TweetsData>(listKey, (prev) => {
         if (!prev) return prev;
         // 先頭 (直前の optimistic) を server 応答で差し替える。
