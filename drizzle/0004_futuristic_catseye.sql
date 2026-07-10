@@ -1,1 +1,0 @@
-ALTER TABLE `tweets` ADD `parent_id` text REFERENCES tweets(id);

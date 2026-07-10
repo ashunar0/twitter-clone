@@ -2,6 +2,7 @@ import { Hono, type MiddlewareHandler } from "hono";
 import follows from "../features/follows/server";
 import likes from "../features/likes/server";
 import notifications from "../features/notifications/server";
+import profiles from "../features/profiles/server";
 import tweets from "../features/tweets/server";
 import users from "../features/users/server";
 import { apiErrorHandler } from "./lib/errors";
@@ -25,10 +26,12 @@ export function buildRoutes(dbMiddleware: MiddlewareHandler) {
     .route("/api/likes", likes)
     // notifications sub-app を /api/notifications に mount。
     .route("/api/notifications", notifications)
+    // profiles sub-app を /api/profiles に mount (public 表示 identity)。
+    .route("/api/profiles", profiles)
     // tweets sub-app を /api/tweets に mount。
     .route("/api/tweets", tweets)
-    // users sub-app を /api/users に mount。
-    .route("/api/users", users);
+    // users sub-app (better-auth handler) を /api/auth に mount (認証、feature 名 users ↔ URL /api/auth の乖離は許容)。
+    .route("/api/auth", users);
 }
 
 export type AppType = ReturnType<typeof buildRoutes>;

@@ -5,36 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1783592900332,
-      "tag": "0000_mushy_butterfly",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1783594511156,
-      "tag": "0001_yellow_dreaming_celestial",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1783598468539,
-      "tag": "0002_stormy_starbolt",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1783602851718,
-      "tag": "0003_empty_ben_grimm",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1783671788580,
-      "tag": "0004_futuristic_catseye",
+      "when": 1783676589794,
+      "tag": "0000_smiling_lucky_pierre",
       "breakpoints": true
     }
   ]

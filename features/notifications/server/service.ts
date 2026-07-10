@@ -1,6 +1,9 @@
 import type { ActorSummary, NotificationsListResponseWire } from "../schema";
 import type { DB } from "../../../server/lib/db";
-import { usersRepository, type StoredUser } from "../../users/server/repository";
+import {
+  profilesRepository,
+  type StoredProfileWithUser,
+} from "../../profiles/server/repository";
 import { notificationsRepository, type StoredNotification } from "./repository";
 
 // DB row → wire 形。
@@ -14,11 +17,12 @@ function toWire(row: StoredNotification) {
   };
 }
 
-function toActorSummary(row: StoredUser): ActorSummary {
+// profile+user JOIN 行 → ActorSummary (handle/name/avatarUrl)。
+function toActorSummary(row: StoredProfileWithUser): ActorSummary {
   return {
-    handle: row.handle,
-    name: row.name,
-    avatarUrl: row.avatarUrl,
+    handle: row.profile.handle,
+    name: row.user.name,
+    avatarUrl: row.user.image ?? null,
   };
 }
 
@@ -42,15 +46,13 @@ export const notificationsService = {
   ): Promise<NotificationsListResponseWire> {
     const rows = await notificationsRepository.findByRecipient(db, currentUserId);
     const actorIds = [...new Set(rows.map((r) => r.actorId))];
-    const [actors, unreadCount] = await Promise.all([
-      usersRepository.findByIds(db, actorIds),
+    const [profileRows, unreadCount] = await Promise.all([
+      profilesRepository.findByUserIds(db, actorIds),
       notificationsRepository.countUnread(db, currentUserId),
     ]);
-    const actorMap = new Map(actors.map((a) => [a.id, a]));
     const actorSummaries: Record<string, ActorSummary> = {};
-    for (const id of actorIds) {
-      const row = actorMap.get(id);
-      if (row) actorSummaries[id] = toActorSummary(row);
+    for (const row of profileRows) {
+      actorSummaries[row.profile.userId] = toActorSummary(row);
     }
     return {
       notifications: rows.map(toWire),

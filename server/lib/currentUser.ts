@@ -1,35 +1,32 @@
 import { createMiddleware } from "hono/factory";
-import { usersRepository } from "../../features/users/server/repository";
+import { getAuth } from "../../features/users/server/auth";
 import type { User } from "../../features/users/type";
 import { ApiError } from "./errors";
 import type { DbVariables } from "./withDb";
 
-// mock auth: 固定 seed user を "current user" とみなす。
-// 本物 auth を入れる時は、この 1 ファイルの middleware を書き換えるだけで済むように隔離しておく。
-export const SEED_USER_ID = "u1";
-
+// better-auth の session (cookie 経由) を検証して current user を context に入れる middleware。
+// - session 無効 / 期限切れ → ApiError.forbidden (401 相当は forbidden で寄せる、規約 5 種類)
+// - session 有効 → c.set("currentUser", user)
+// mock 時代は SEED_USER_ID で固定していた。本物 auth に差し替わったが、他 feature の
+// c.get("currentUser") 側のインタフェースは変わらない (mock 隔離の意義)。
 export type AuthVariables = DbVariables & {
   currentUser: User;
 };
 
-// mock auth middleware — c.get("db") 経由で SEED_USER_ID を引き、c.set("currentUser") する。
-// withDb の後ろに繋ぐこと (chain: use("*", withDb(...), withCurrentUser))。
 export const withCurrentUser = createMiddleware<{ Variables: AuthVariables }>(
   async (c, next) => {
     const db = c.get("db");
-    const row = await usersRepository.findById(db, SEED_USER_ID);
-    if (!row) {
-      throw new ApiError({
-        code: "internal",
-        message: "seed user missing. run `pnpm db:seed`.",
-      });
+    const env = c.env as { BETTER_AUTH_SECRET?: string } | undefined;
+    const auth = getAuth(db, { secret: env?.BETTER_AUTH_SECRET });
+    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    if (!session) {
+      throw ApiError.forbidden("認証が必要なのだ");
     }
     c.set("currentUser", {
-      id: row.id,
-      handle: row.handle,
-      name: row.name,
-      avatarUrl: row.avatarUrl,
-      createdAt: row.createdAt,
+      id: session.user.id,
+      email: session.user.email,
+      name: session.user.name,
+      image: session.user.image ?? null,
     });
     await next();
   },

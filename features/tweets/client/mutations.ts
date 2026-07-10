@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Tweet } from "../type";
 import type { AuthorSummary, CreateTweetWire } from "../schema";
-import type { User } from "@features/users/type";
+import type { Profile } from "@features/profiles/type";
 import { tweetsRpc } from "./rpc";
 import { tweetsKeys, type TweetsPagesCache } from "./queries";
 
@@ -9,7 +9,8 @@ type MutationContext = { snapshot: TweetsPagesCache | undefined };
 
 // 新規 tweet を作成、optimistic に pages[0] の先頭へ挿入する (InfiniteData 対応)。
 // 成功時に server 応答 (real id / createdAt) で差し替え、失敗時は snapshot に巻き戻す。
-export function useCreateTweetMutation(currentUser: User) {
+// 引数の currentProfile は optimistic の author summary (handle/name/avatarUrl) を作るために使う。
+export function useCreateTweetMutation(currentProfile: Profile) {
   const queryClient = useQueryClient();
   const listKey = tweetsKeys.list();
 
@@ -24,15 +25,15 @@ export function useCreateTweetMutation(currentUser: User) {
 
       const optimistic: Tweet = {
         id: `optimistic-${Date.now()}`,
-        authorId: currentUser.id,
+        authorId: currentProfile.userId,
         parentId: null,
         body: input.body,
         createdAt: new Date().toISOString(),
       };
       const authorSummary: AuthorSummary = {
-        handle: currentUser.handle,
-        name: currentUser.name,
-        avatarUrl: currentUser.avatarUrl,
+        handle: currentProfile.handle,
+        name: currentProfile.name,
+        avatarUrl: currentProfile.avatarUrl,
       };
 
       // pages[0] (最新 page) の先頭に optimistic tweet を挿入する。
@@ -43,7 +44,7 @@ export function useCreateTweetMutation(currentUser: User) {
             pages: [
               {
                 tweets: [optimistic],
-                authorSummaries: { [currentUser.id]: authorSummary },
+                authorSummaries: { [currentProfile.userId]: authorSummary },
                 likeState: { counts: { [optimistic.id]: 0 }, mineIds: [] },
                 nextCursor: null,
               },
@@ -58,7 +59,7 @@ export function useCreateTweetMutation(currentUser: User) {
               tweets: [optimistic, ...firstPage.tweets],
               authorSummaries: {
                 ...firstPage.authorSummaries,
-                [currentUser.id]: authorSummary,
+                [currentProfile.userId]: authorSummary,
               },
               likeState: {
                 counts: {
@@ -70,7 +71,7 @@ export function useCreateTweetMutation(currentUser: User) {
             }
           : {
               tweets: [optimistic],
-              authorSummaries: { [currentUser.id]: authorSummary },
+              authorSummaries: { [currentProfile.userId]: authorSummary },
               likeState: {
                 counts: { [optimistic.id]: 0 },
                 mineIds: [] as string[],

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Button } from "@/shared/ui/button";
-import { useCurrentUserQuery } from "@features/users/client/queries";
+import { useCurrentProfileQuery } from "@features/profiles/client/queries";
 import { useCreateTweetMutation } from "@features/tweets/client/mutations";
 
 const MAX_LENGTH = 280;
@@ -18,17 +18,17 @@ export function TweetComposer({
   placeholder?: string;
   submitLabel?: string;
 } = {}) {
-  const currentUserQuery = useCurrentUserQuery();
-  const currentUser = currentUserQuery.data;
-  const createTweet = useCreateTweetMutation(currentUser!);
+  const currentProfileQuery = useCurrentProfileQuery();
+  const currentProfile = currentProfileQuery.data;
+  const createTweet = useCreateTweetMutation(currentProfile!);
 
   const [body, setBody] = useState("");
-  const disabled = !currentUser || body.trim().length === 0 || createTweet.isPending;
+  const disabled = !currentProfile || body.trim().length === 0 || createTweet.isPending;
 
   // form submit を止めて mutation を発火、成功したら textarea をクリアして親に通知。
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (disabled || !currentUser) return;
+    if (disabled || !currentProfile) return;
     createTweet.mutate(
       { body: body.trim(), parentId: parentId ?? null },
       {
@@ -46,13 +46,13 @@ export function TweetComposer({
         value={body}
         onChange={(e) => setBody(e.target.value)}
         placeholder={
-          currentUser
+          currentProfile
             ? (placeholder ?? "What's happening?")
             : "Loading…"
         }
         maxLength={MAX_LENGTH}
         rows={3}
-        disabled={!currentUser}
+        disabled={!currentProfile}
         className="w-full rounded-lg border border-neutral-300 p-3 focus:border-neutral-500 focus:outline-none"
       />
       <div className="flex items-center justify-between">

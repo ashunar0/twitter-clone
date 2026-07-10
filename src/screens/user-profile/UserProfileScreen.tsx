@@ -1,8 +1,6 @@
 import { useState } from "react";
-import {
-  useCurrentUserQuery,
-  useUserByHandleQuery,
-} from "@features/users/client/queries";
+import { useProfileByHandleQuery } from "@features/profiles/client/queries";
+import { useSession } from "@features/users/client/auth-client";
 import { useUserTweetsQuery } from "@features/tweets/client/queries";
 import { useFollowCountsQuery } from "@features/follows/client/queries";
 import { TweetItem } from "@/widgets/tweet-item/TweetItem";
@@ -11,32 +9,31 @@ import { InfiniteScrollSentinel } from "@/shared/InfiniteScrollSentinel";
 import { Button } from "@/shared/ui/button";
 import { EditProfileForm } from "./EditProfileForm";
 
-// user profile 画面。loader で prefetch 済みの user / tweets / follow 情報を cache から読む。
+// user profile 画面。loader で prefetch 済みの profile / tweets / follow 情報を cache から読む。
 export function UserProfileScreen({ handle }: { handle: string }) {
-  const userQuery = useUserByHandleQuery(handle);
-  const currentUserQuery = useCurrentUserQuery();
-  const user = userQuery.data;
-  const currentUser = currentUserQuery.data;
-  // user が確定するまで下位 query は enable しない (id が要る)。
-  const tweetsQuery = useUserTweetsQuery(user?.id ?? "");
-  const countsQuery = useFollowCountsQuery(user?.id ?? "");
+  const profileQuery = useProfileByHandleQuery(handle);
+  const session = useSession();
+  const profile = profileQuery.data;
+  // profile が確定するまで下位 query は enable しない (userId が要る)。
+  const tweetsQuery = useUserTweetsQuery(profile?.userId ?? "");
+  const countsQuery = useFollowCountsQuery(profile?.userId ?? "");
   const [editing, setEditing] = useState(false);
 
-  if (userQuery.isLoading) return <div className="p-6">Loading…</div>;
-  if (userQuery.error || !user)
+  if (profileQuery.isLoading) return <div className="p-6">Loading…</div>;
+  if (profileQuery.error || !profile)
     return <div className="p-6 text-red-600">User not found</div>;
 
   const tweets = tweetsQuery.data;
   const counts = countsQuery.data;
-  const isMe = currentUser?.id === user.id;
+  const isMe = session.data?.user.id === profile.userId;
 
   return (
     <main className="mx-auto max-w-xl p-6">
       <div className="mb-6 rounded-lg border border-neutral-200 p-4">
         <div className="mb-2 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">{user.name}</h1>
-            <div className="text-sm text-neutral-600">@{user.handle}</div>
+            <h1 className="text-2xl font-bold">{profile.name}</h1>
+            <div className="text-sm text-neutral-600">@{profile.handle}</div>
           </div>
           {isMe ? (
             !editing && (
@@ -49,7 +46,7 @@ export function UserProfileScreen({ handle }: { handle: string }) {
               </Button>
             )
           ) : (
-            <FollowButton targetUserId={user.id} />
+            <FollowButton targetUserId={profile.userId} />
           )}
         </div>
         <div className="flex gap-4 text-sm text-neutral-700">
@@ -67,7 +64,7 @@ export function UserProfileScreen({ handle }: { handle: string }) {
           </span>
         </div>
         {isMe && editing ? (
-          <EditProfileForm user={user} onDone={() => setEditing(false)} />
+          <EditProfileForm profile={profile} onDone={() => setEditing(false)} />
         ) : null}
       </div>
       <h2 className="mb-3 text-lg font-semibold">Tweets</h2>

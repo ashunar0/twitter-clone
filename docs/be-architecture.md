@@ -390,7 +390,7 @@ Node singleton パターンから **request-scoped な db 注入**に移行し�
 - **app.ts は builder function**: `buildRoutes(dbMiddleware)` に切り出し、entry file から呼び出す
 - **全 repository / service / usecase の signature に `db: DB` を第一引数追加**
   - repository: `usersRepository.findById(db, id)`
-  - service: `usersService.updateProfile(db, currentUserId, input)`
+  - service: `profilesService.updateMe(db, currentUserId, input)`
   - usecase: `createTweet(db, input, currentUserId)`
 - **route は `const db = c.get("db")` を掴んで下流に渡す**
 
@@ -413,9 +413,74 @@ Node singleton パターンから **request-scoped な db 注入**に移行し�
 
 `wrangler.jsonc` の `assets` binding で FE を配信する時、`/api/*` にも SPA fallback が効いてしまうので **`run_worker_first: ["/api/*"]`** で Worker を先に走らせる。設定漏れると /api が index.html を返す。
 
+## Auth 実装 (better-auth) と users/profiles 分割
+
+mock auth (SEED_USER_ID 固定) から **better-auth** による本物 auth に切り替え。同時に `users` を **auth テーブル (better-auth 管理)** と **profiles (public identity)** に split。
+
+### なぜ split したか (業界標準の話)
+
+- **merged 派**: 早期 SaaS / MVP は 1 テーブルで OK
+- **split 派**: Twitter/Instagram 規模は分離が主流
+  - password hash や MFA secret を public 表示テーブルと物理分離 (漏洩時 blast radius 抑制)
+  - profile がリッチ化 (bio, cover, verified 等) しても auth を汚さない
+  - cache 戦略が異なる (profile は CDN、auth は絶対キャッシュしない)
+- better-auth 自体が `user` + `account` を分ける設計思想
+- twitter-clone は Twitter 規模を模す前提なので split を選択
+
+### テーブル構成
+
+```
+users (better-auth 管理、features/users/server/table.ts)
+├─ id, email UNIQUE, emailVerified, name, image, createdAt/updatedAt
+accounts (credential/OAuth リンク、password hash はここ)
+├─ id, accountId, providerId, userId FK, password, ...
+sessions (cookie session)
+├─ id, expiresAt, token, userId FK, ...
+verifications (email verification / reset token)
+
+profiles (our domain、features/profiles/server/table.ts)
+├─ userId PK/FK (1:1 with users), handle UNIQUE, createdAt
+```
+
+- `usePlural: true` で better-auth 側の default 単数名を複数形に上書き
+- FK 参照 (tweets.author_id 等) は `users.id` 継続 (relation は無傷)
+
+### feature 分割 (A: features/users = auth / features/profiles = identity)
+
+- **features/users/** = auth ドメイン
+  - `server/table.ts`: users + accounts + sessions + verifications
+  - `server/auth.ts`: `getAuth(db)` で better-auth instance を返す factory
+  - `server/index.ts`: `/api/auth/*` の handler を丸ごと mount
+  - `client/auth-client.ts`: `createAuthClient` + `useSession` / `signIn` / `signUp` を re-export
+- **features/profiles/** = identity ドメイン
+  - `server/table.ts`: profiles
+  - `server/repository.ts`: profile+user JOIN で取り出す `StoredProfileWithUser`
+  - tweets/notifications の enrichment は `profilesRepository.findByUserIds` を叩く
+- **feature 名 vs URL の乖離**: `features/users` を `/api/auth` に mount している (better-auth の default basePath に合わせるため)。auth は "システム関心" なので domain 名と URL 名が食い違うのは許容
+
+### signup 時の profile auto-create
+
+better-auth の `databaseHooks.user.create.after` で profile を default handle (email prefix + random suffix) 付きで自動 insert。auth ドメインが profile 1 個を生む onboarding step として例外的に許容 (規約 doc 記載)。
+
+### session cookie と Cloudflare Workers
+
+- `BETTER_AUTH_SECRET` を Cloudflare secret で管理 (`wrangler secret put`)
+- `wrangler.jsonc` に `"compatibility_flags": ["nodejs_compat"]` — better-auth が `node:crypto` を使うため必須
+- `trustedOrigins` に dev/prod 両方の URL を列挙 (Vite proxy 経由の "Invalid origin" 対策)
+- `withCurrentUser` middleware は `getAuth(db, {secret: c.env.BETTER_AUTH_SECRET}).api.getSession(...)` で cookie から session 抽出
+- 未認証は `ApiError.forbidden` を throw (401 相当は forbidden で寄せる、規約 5 種類を膨らませない)
+
+### mock 隔離の意義が証明された
+
+mock 時代の `withCurrentUser` (SEED_USER_ID 固定) → 本物 auth 切り替え時に **他 feature の handler 側は変更ゼロ**。全ての feature route が `c.get("currentUser")` を読むだけ、なので中身が mock だろうと better-auth session だろうと consumer には無影響。**mock 隔離規約の payoff がここで払拭された**。
+
+### FE 側 auth guard
+
+`__root.tsx` の `useEffect` で `session.isPending === false` かつ `!session.data` なら `/signin` へ redirect。`/signin` / `/signup` は public path として除外。
+
 ## 未確定 (次スライスで検証)
 
-なし (mock auth からの本物 auth 化、Media upload、Mention/Retweet が Tier A に残っている)
+なし (Media upload、Mention/Retweet、UI トンマナ / 記事化 が Tier A に残っている)
 
 ## 検証済み (実装で確定)
 
@@ -434,3 +499,4 @@ Node singleton パターンから **request-scoped な db 注入**に移行し�
 | cursor pagination | opaque `base64url(createdAt\|id)`、tuple 比較を or/and 展開、page size は server hardcode | tweets cursor |
 | 統一 error shape | `{code, message, fields?}` bare、`ApiError` + `apiErrorHandler` + `zv` wrapper で全 endpoint 揃える。BE/FE で `handleSchema` などを共有 | updateProfile |
 | request-scoped DB | `db.ts` は type only、Node/Workers factory を entry で選択。全 repository/service/usecase の signature に `db: DB` 第一引数を追加。app.ts は builder 化。static assets と同 origin 配信は `run_worker_first: ["/api/*"]` | Cloudflare Workers deploy |
+| Auth 本実装 + users/profiles split | better-auth (email/password) + `usePlural: true` + `databaseHooks` で profile auto-create。features/users = auth、features/profiles = identity に分離。`nodejs_compat` + `BETTER_AUTH_SECRET` (Cloudflare secret) + `trustedOrigins` で Workers 動作 | better-auth 導入 |

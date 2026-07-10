@@ -11,6 +11,7 @@
   "name": "twitter-clone",
   "main": "server/worker.ts",
   "compatibility_date": "2025-11-01",
+  "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

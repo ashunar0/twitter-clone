@@ -1,30 +1,30 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import type { User } from "@features/users/type";
+import type { Profile } from "@features/profiles/type";
 import {
   handleSchema,
   nameSchema,
   type UpdateProfileWire,
-} from "@features/users/schema";
-import { useUpdateProfileMutation } from "@features/users/client/mutations";
+} from "@features/profiles/schema";
+import { useUpdateProfileMutation } from "@features/profiles/client/mutations";
 import { ApiError } from "@/lib/hono/apiError";
 import { Button } from "@/shared/ui/button";
 
-// 自分の profile を編集する inline form。
+// 自分の profile (handle + name) を編集する inline form。
 // - client 側 zod で先に validate、失敗なら送らず inline エラー表示
 // - server 400 (validation_failed) / 409 (conflict) は ApiError.fields を form に反映
 // - handle が変わったら /u/新handle に redirect (現 URL の handle と乖離するため)
 export function EditProfileForm({
-  user,
+  profile,
   onDone,
 }: {
-  user: User;
+  profile: Profile;
   onDone: () => void;
 }) {
   const navigate = useNavigate();
   const updateProfile = useUpdateProfileMutation();
-  const [name, setName] = useState(user.name);
-  const [handle, setHandle] = useState(user.handle);
+  const [name, setName] = useState(profile.name);
+  const [handle, setHandle] = useState(profile.handle);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // client 側 validate → server POST → success/error のいずれかを inline に反映。
@@ -48,13 +48,12 @@ export function EditProfileForm({
     updateProfile.mutate(input, {
       onSuccess: (updated) => {
         onDone();
-        if (updated.handle !== user.handle) {
+        if (updated.handle !== profile.handle) {
           navigate({ to: "/u/$handle", params: { handle: updated.handle } });
         }
       },
       onError: (err) => {
         if (err instanceof ApiError) {
-          // validation_failed / conflict は fields を form に反映。
           if (err.fields) {
             setErrors(err.fields);
             return;
