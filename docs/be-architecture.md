@@ -326,25 +326,75 @@ list endpoint を **1 page 分だけ返す + `nextCursor` を付与**する形�
 - **order も複合**: `orderBy(desc(createdAt), desc(id))` — cursor と揃える
 - **page size は server hardcode** (`TWEETS_PAGE_SIZE = 20`) — client 指定は受けない
 - **cursor helper は Node / Cloudflare Workers 両対応**: `btoa`/`atob` + URL-safe 変換で書く (Buffer 禁止)
-- **cursor 破損 = 400**: route で `decodeTweetCursor` が `null` を返したら `HTTPException(400, "invalid cursor")`
+- **cursor 破損 = 400**: route で `decodeTweetCursor` が `null` を返したら `ApiError.validationFailed({ cursor: "invalid cursor" })`
 - **nextCursor の判定**: `rows.length === PAGE_SIZE && last` なら next あり、そうでなければ null (境界ぴったりで終わる corner case は次 fetch が空返しで自然に閉じる)
+
+## 統一 Error shape
+
+全 endpoint が同じ shape で 4xx / 5xx を返す。`server/lib/errors.ts` の `ApiError` と `app.onError` (グローバルハンドラ) で reshape する。
+
+### shape
+
+```ts
+type ApiErrorBody = {
+  code:
+    | "validation_failed"    // 400: zod / 入力形式 NG
+    | "conflict"             // 409: 重複 / business rule 違反
+    | "not_found"            // 404: resource 不在
+    | "forbidden"            // 403: 認可不足 (未使用)
+    | "internal";            // 500: 未処理
+  message: string;                 // 人間向け 1 行 (toast にそのまま)
+  fields?: Record<string, string>; // validation_failed / conflict の時、field 名 → メッセージ
+};
+```
+
+### 使い分け (route / usecase / service から throw)
+
+- `ApiError.validationFailed(fields, message?)` — 400、複数フィールド OK
+- `ApiError.conflict(message, fields?)` — 409、handle 重複 / self-follow など。fields は field 起因なら付ける
+- `ApiError.notFound(message)` — 404
+- `ApiError.forbidden(message)` — 403
+
+### zValidator は wrapper 経由
+
+`server/lib/zv.ts` で `@hono/zod-validator` を wrap、失敗時に自動で `ApiError.validationFailed(fields)` に変換する。route 側は `zv("json", schema)` を書くだけで validation_failed shape が保証される。
+
+- zod issue の `path` を `.` join で 1 key に、`message` を値に格納
+- issue が複数フィールドに跨がれば `fields` の複数 key として返る (`{ name: "...", handle: "..." }`)
+- **既存の `zValidator` 直呼びは禁止** — 全て `zv` 経由
+
+### グローバルハンドラ (`apiErrorHandler`)
+
+`app.onError(apiErrorHandler)` で登録:
+- `ApiError` → その body / status
+- `HTTPException` → status から code を推定して reshape (Hono 内部 exception の互換用)
+- それ以外 (Error) → `code: "internal"`, 500
+
+### FE 側 (`src/lib/hono/apiError.ts`)
+
+同じ shape を FE 側でも `ApiError` class として持ち、rpc 層の `throwIfNotOk(res)` が `!res.ok` 時に body を parse して throw する。**全 rpc.ts は `throwIfNotOk` 経由**、`throw new Error("failed to ...")` は禁止。
+
+### handle / name などの入力 schema は BE/FE 共有
+
+`features/<domain>/schema.ts` に `handleSchema`, `nameSchema` のような **field 単位の共有 schema** を切り、BE の validation と FE の client-side check で同じ regex/制約を使う。message も同じ (BE/FE で乖離しない、UX 一貫)。
 
 ## 未確定 (次スライスで検証)
 
-- **error shape の統一** — zValidator 失敗時の 400 response 形、`HTTPException` の status 使い分けはまだ観察していない (cursor 破損は `HTTPException(400)` で 1 例出したが、zValidator との一貫性は未確定)。バリデーション失敗を意図的に踏むスライス (validation UI テスト、必須欠落 UX) で確定
+なし (Cloudflare deploy に着手予定)
 
 ## 検証済み (実装で確定)
 
 | 論点 | 決着 | 検証したスライス |
 |---|---|---|
 | create の service 引数 | `service.create(input, currentUserId)` (入力 vs context 分離) | #4b tweets create |
-| zod validation の layer | route 入口で `zValidator("json", schema)` を chain 内に | #4b tweets create |
+| zod validation の layer | route 入口で `zv("json", schema)` を chain 内に (`server/lib/zv.ts` 経由、失敗時 ApiError に自動変換) | #4b tweets create / updateProfile |
 | create response の形 | 作成 entity 単体を 201。cross-domain 合成は list に任せる | #4b tweets create |
 | id 生成 | server 側で `crypto.randomUUID()` | #4b tweets create |
 | read の cross-domain 合成 | service が別 feature の repository を read enrichment に使う | #4a tweets list |
 | write の cross-domain orchestration | `usecases/<verb><Entity>.ts` で 1 ファイル 1 関数、他 feature service 呼び出し許可 | #16 followUser |
 | 冪等 write + side effect | `.onConflictDoNothing().returning(...)` の length で新規判定、新規時のみ side effect 発火 | #16 followUser |
-| business rule の帰属 | service は low-level、rule (self-follow 禁止等) は usecase の `HTTPException` で | #16 followUser |
+| business rule の帰属 | service は low-level、rule (self-follow 禁止等) は usecase の `ApiError` で | #16 followUser |
 | side effect entity のライフサイクル | 関係 entity と別 (follow 削除でも通知履歴は残す)、cascade は関係 entity のみ | #16 follows/notifications |
 | self-ref FK (reply の parent) | `text().references((): AnySQLiteColumn => tweets.id)` で型注釈経由、cascade は初期 CREATE 時のみ効く (ALTER TABLE は制限あり) | tweets reply |
 | cursor pagination | opaque `base64url(createdAt\|id)`、tuple 比較を or/and 展開、page size は server hardcode | tweets cursor |
+| 統一 error shape | `{code, message, fields?}` bare、`ApiError` + `apiErrorHandler` + `zv` wrapper で全 endpoint 揃える。BE/FE で `handleSchema` などを共有 | updateProfile |

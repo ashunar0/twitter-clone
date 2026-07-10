@@ -1,4 +1,4 @@
-import { HTTPException } from "hono/http-exception";
+import { ApiError } from "../../../../server/lib/errors";
 import { followsService } from "../service";
 import { notificationsService } from "../../../notifications/server/service";
 
@@ -11,7 +11,7 @@ export async function followUser(
   followeeId: string,
 ): Promise<void> {
   if (currentUserId === followeeId) {
-    throw new HTTPException(400, { message: "cannot follow yourself" });
+    throw ApiError.conflict("cannot follow yourself");
   }
   const created = await followsService.follow(currentUserId, followeeId);
   // 既存 follow を再要求された場合は通知を再作成しない (冪等)。

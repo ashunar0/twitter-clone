@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { zv } from "../../../server/lib/zv";
 import { createFollowWireSchema } from "../schema";
 import { withCurrentUser, type AuthVariables } from "../../../server/lib/currentUser";
 import { followsService } from "./service";
@@ -8,7 +8,7 @@ import { followUser } from "./usecases/followUser";
 const follows = new Hono<{ Variables: AuthVariables }>()
   .use("*", withCurrentUser)
   // POST /api/follows — followUser usecase 経由 (follow 作成 + 通知発火)。
-  .post("/", zValidator("json", createFollowWireSchema), async (c) => {
+  .post("/", zv("json", createFollowWireSchema), async (c) => {
     const { followeeId } = c.req.valid("json");
     const currentUser = c.get("currentUser");
     await followUser(currentUser.id, followeeId);

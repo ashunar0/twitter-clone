@@ -4,8 +4,11 @@ import likes from "../features/likes/server";
 import notifications from "../features/notifications/server";
 import tweets from "../features/tweets/server";
 import users from "../features/users/server";
+import { apiErrorHandler } from "./lib/errors";
 
 const app = new Hono();
+// throw された ApiError / HTTPException / 未処理 Error を全て統一 shape に reshape する。
+app.onError(apiErrorHandler);
 
 export const routes = app
   // GET /api/health — liveness チェック用の最小 endpoint。

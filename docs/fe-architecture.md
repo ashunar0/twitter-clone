@@ -52,19 +52,20 @@ features/<domain>/
 
 ```ts
 import { rpcClient } from "@/lib/hono/client";
+import { throwIfNotOk } from "@/lib/hono/apiError";
 import type { TweetsListResponseWire, TweetWire, CreateTweetWire } from "../schema";
 
 export const tweetsRpc = {
   // GET /api/tweets — 直近 tweets + author summary を取得。
   async list(): Promise<TweetsListResponseWire> {
     const res = await rpcClient.api.tweets.$get();
-    if (!res.ok) throw new Error("failed to fetch tweets");
+    await throwIfNotOk(res);
     return (await res.json()) as TweetsListResponseWire;
   },
   // POST /api/tweets — current user 名義で 1 件作成。
   async create(input: CreateTweetWire): Promise<TweetWire> {
     const res = await rpcClient.api.tweets.$post({ json: input });
-    if (!res.ok) throw new Error("failed to create tweet");
+    await throwIfNotOk(res);
     return (await res.json()) as TweetWire;
   },
 };
@@ -73,8 +74,49 @@ export const tweetsRpc = {
 - **React 非依存**。hook でも component でも呼べる純関数の集合
 - 形は object literal (`export const <domain>Rpc = { ... }`)
 - `rpcClient.api.<resource>.$method(...)` を薄く包むだけ
-- `!res.ok` → throw、成功時は wire 型で返す
+- **`throwIfNotOk(res)` を必ず通す** — 失敗時に `ApiError` を throw する共通 helper。`throw new Error("failed to ...")` は禁止 (error body の code/fields を捨てるため)
+- 成功時は wire 型で返す
 - **やらない**: cache 触る / 派生値計算 / React hooks / UI state
+
+### 統一 Error shape の受け側
+
+BE (`server/lib/errors.ts`) と対の `src/lib/hono/apiError.ts`:
+
+```ts
+class ApiError extends Error {
+  code: "validation_failed" | "conflict" | "not_found" | "forbidden" | "internal";
+  status: number;
+  fields?: Record<string, string>;
+}
+```
+
+mutation の `onError` で:
+
+```ts
+onError: (err) => {
+  if (err instanceof ApiError) {
+    if (err.fields) setFieldErrors(err.fields);         // validation_failed / conflict
+    else showToast(err.message);                          // 単発 message のみ
+    return;
+  }
+  showToast("something went wrong");
+}
+```
+
+### BE と共有する field schema
+
+同じ field を BE / FE の両側で validate したい時は、feature 側の schema.ts に **共有 schema** を切って両側から import する:
+
+```ts
+// features/users/schema.ts
+export const handleSchema = z.string().regex(/^[a-zA-Z0-9_]{3,15}$/, "3〜15 文字の英数字と _ のみ");
+export const nameSchema  = z.string().trim().min(1, "…").max(50, "…");
+export const updateProfileWireSchema = z.object({ name: nameSchema, handle: handleSchema });
+```
+
+- BE は route で `zv("json", updateProfileWireSchema)` に食わせて 400 に変換
+- FE は EditForm で `handleSchema.safeParse(value)` を submit 前に叩き、失敗ならその場で inline error
+- **同じ regex / message を使うので、BE/FE の UX が乖離しない**
 
 ### queries.ts — server state cache 層
 

@@ -1,4 +1,4 @@
-import { HTTPException } from "hono/http-exception";
+import { ApiError } from "../../../../server/lib/errors";
 import type { CreateTweetWire } from "../../schema";
 import type { Tweet } from "../../type";
 import { tweetsService } from "../service";
@@ -15,7 +15,7 @@ export async function createTweet(
   if (input.parentId) {
     const parent = await tweetsService.findById(input.parentId);
     if (!parent) {
-      throw new HTTPException(404, { message: "parent tweet not found" });
+      throw ApiError.notFound("parent tweet not found");
     }
     const created = await tweetsService.create(input, currentUserId);
     // self-reply には通知を送らない (自分宛の noise を避ける)。

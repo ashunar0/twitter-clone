@@ -1,4 +1,5 @@
 import { rpcClient } from "@/lib/hono/client";
+import { throwIfNotOk } from "@/lib/hono/apiError";
 import type {
   CreateTweetWire,
   TweetWire,
@@ -16,13 +17,13 @@ export const tweetsRpc = {
     if (filter?.authorId) query.authorId = filter.authorId;
     if (filter?.cursor) query.cursor = filter.cursor;
     const res = await rpcClient.api.tweets.$get({ query });
-    if (!res.ok) throw new Error("failed to fetch tweets");
+    await throwIfNotOk(res);
     return (await res.json()) as TweetsListResponseWire;
   },
   // POST /api/tweets — current user 名義で 1 件作成、作成された Tweet を返す。
   async create(input: CreateTweetWire): Promise<TweetWire> {
     const res = await rpcClient.api.tweets.$post({ json: input });
-    if (!res.ok) throw new Error("failed to create tweet");
+    await throwIfNotOk(res);
     return (await res.json()) as TweetWire;
   },
 };

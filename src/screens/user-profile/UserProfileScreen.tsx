@@ -1,17 +1,26 @@
-import { useUserByHandleQuery } from "@features/users/client/queries";
+import { useState } from "react";
+import {
+  useCurrentUserQuery,
+  useUserByHandleQuery,
+} from "@features/users/client/queries";
 import { useUserTweetsQuery } from "@features/tweets/client/queries";
 import { useFollowCountsQuery } from "@features/follows/client/queries";
 import { TweetItem } from "@/widgets/tweet-item/TweetItem";
 import { FollowButton } from "@/widgets/follow-button/FollowButton";
 import { InfiniteScrollSentinel } from "@/shared/InfiniteScrollSentinel";
+import { Button } from "@/shared/ui/button";
+import { EditProfileForm } from "./EditProfileForm";
 
 // user profile 画面。loader で prefetch 済みの user / tweets / follow 情報を cache から読む。
 export function UserProfileScreen({ handle }: { handle: string }) {
   const userQuery = useUserByHandleQuery(handle);
+  const currentUserQuery = useCurrentUserQuery();
   const user = userQuery.data;
+  const currentUser = currentUserQuery.data;
   // user が確定するまで下位 query は enable しない (id が要る)。
   const tweetsQuery = useUserTweetsQuery(user?.id ?? "");
   const countsQuery = useFollowCountsQuery(user?.id ?? "");
+  const [editing, setEditing] = useState(false);
 
   if (userQuery.isLoading) return <div className="p-6">Loading…</div>;
   if (userQuery.error || !user)
@@ -19,6 +28,7 @@ export function UserProfileScreen({ handle }: { handle: string }) {
 
   const tweets = tweetsQuery.data;
   const counts = countsQuery.data;
+  const isMe = currentUser?.id === user.id;
 
   return (
     <main className="mx-auto max-w-xl p-6">
@@ -28,7 +38,19 @@ export function UserProfileScreen({ handle }: { handle: string }) {
             <h1 className="text-2xl font-bold">{user.name}</h1>
             <div className="text-sm text-neutral-600">@{user.handle}</div>
           </div>
-          <FollowButton targetUserId={user.id} />
+          {isMe ? (
+            !editing && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditing(true)}
+              >
+                Edit
+              </Button>
+            )
+          ) : (
+            <FollowButton targetUserId={user.id} />
+          )}
         </div>
         <div className="flex gap-4 text-sm text-neutral-700">
           <span>
@@ -44,6 +66,9 @@ export function UserProfileScreen({ handle }: { handle: string }) {
             Following
           </span>
         </div>
+        {isMe && editing ? (
+          <EditProfileForm user={user} onDone={() => setEditing(false)} />
+        ) : null}
       </div>
       <h2 className="mb-3 text-lg font-semibold">Tweets</h2>
       {tweetsQuery.isLoading || !tweets ? (

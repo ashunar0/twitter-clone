@@ -24,4 +24,17 @@ export const usersRepository = {
     if (ids.length === 0) return [];
     return db.select().from(users).where(inArray(users.id, ids));
   },
+  // 1 件更新して更新後 row を返す。id が無ければ null。
+  // handle UNIQUE 制約違反は SQLite が投げる、service 側で catch する。
+  async updateById(
+    id: string,
+    patch: { name: string; handle: string },
+  ): Promise<StoredUser | null> {
+    const [row] = await db
+      .update(users)
+      .set({ name: patch.name, handle: patch.handle })
+      .where(eq(users.id, id))
+      .returning();
+    return row ?? null;
+  },
 };
