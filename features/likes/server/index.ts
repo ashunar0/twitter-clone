@@ -10,14 +10,16 @@ const likes = new Hono<{ Variables: AuthVariables }>()
   .post("/", zv("json", createLikeWireSchema), async (c) => {
     const { tweetId } = c.req.valid("json");
     const currentUser = c.get("currentUser");
-    await likesService.add(tweetId, currentUser.id);
+    const db = c.get("db");
+    await likesService.add(db, tweetId, currentUser.id);
     return c.json({ ok: true }, 201);
   })
   // DELETE /api/likes/:tweetId — current user の like を外す。
   .delete("/:tweetId", async (c) => {
     const tweetId = c.req.param("tweetId");
     const currentUser = c.get("currentUser");
-    await likesService.remove(tweetId, currentUser.id);
+    const db = c.get("db");
+    await likesService.remove(db, tweetId, currentUser.id);
     return c.body(null, 204);
   });
 

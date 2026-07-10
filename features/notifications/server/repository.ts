@@ -1,18 +1,19 @@
 import { and, desc, eq, sql } from "drizzle-orm";
-import { db } from "../../../server/lib/db";
+import type { DB } from "../../../server/lib/db";
 import { notifications, type NewNotificationRow, type NotificationRow } from "./table";
 
 export type StoredNotification = NotificationRow;
 
 export const notificationsRepository = {
   // 1 件挿入して row を返す。
-  async insert(row: NewNotificationRow): Promise<StoredNotification> {
+  async insert(db: DB, row: NewNotificationRow): Promise<StoredNotification> {
     const [inserted] = await db.insert(notifications).values(row).returning();
     if (!inserted) throw new Error("insert notification failed");
     return inserted;
   },
   // 特定 recipient の通知を新しい順で取得。
   async findByRecipient(
+    db: DB,
     recipientId: string,
     limit = 50,
   ): Promise<StoredNotification[]> {
@@ -24,7 +25,7 @@ export const notificationsRepository = {
       .limit(limit);
   },
   // 未読件数。
-  async countUnread(recipientId: string): Promise<number> {
+  async countUnread(db: DB, recipientId: string): Promise<number> {
     const [row] = await db
       .select({ count: sql<number>`count(*)` })
       .from(notifications)
@@ -37,7 +38,7 @@ export const notificationsRepository = {
     return Number(row?.count ?? 0);
   },
   // 全通知を既読に。
-  async markAllRead(recipientId: string): Promise<void> {
+  async markAllRead(db: DB, recipientId: string): Promise<void> {
     await db
       .update(notifications)
       .set({ isRead: true })

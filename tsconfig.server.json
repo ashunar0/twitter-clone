@@ -16,7 +16,7 @@
       "@server/*": ["./server/*"],
       "@features/*": ["./features/*"]
     },
-    "types": ["node"]
+    "types": ["node", "@cloudflare/workers-types"]
   },
   "include": ["server", "features"],
   "exclude": ["features/*/client"]

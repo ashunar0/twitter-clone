@@ -1,17 +1,17 @@
 import { eq, inArray } from "drizzle-orm";
-import { db } from "../../../server/lib/db";
+import type { DB } from "../../../server/lib/db";
 import { users, type UserRow } from "./table";
 
 export type StoredUser = UserRow;
 
 export const usersRepository = {
   // id で 1 件取得。無ければ null。
-  async findById(id: string): Promise<StoredUser | null> {
+  async findById(db: DB, id: string): Promise<StoredUser | null> {
     const [row] = await db.select().from(users).where(eq(users.id, id)).limit(1);
     return row ?? null;
   },
   // handle (unique) で 1 件取得。無ければ null。
-  async findByHandle(handle: string): Promise<StoredUser | null> {
+  async findByHandle(db: DB, handle: string): Promise<StoredUser | null> {
     const [row] = await db
       .select()
       .from(users)
@@ -20,13 +20,14 @@ export const usersRepository = {
     return row ?? null;
   },
   // 複数 id を 1 クエリで取得 (enrichMany の N+1 回避用)。
-  async findByIds(ids: string[]): Promise<StoredUser[]> {
+  async findByIds(db: DB, ids: string[]): Promise<StoredUser[]> {
     if (ids.length === 0) return [];
     return db.select().from(users).where(inArray(users.id, ids));
   },
   // 1 件更新して更新後 row を返す。id が無ければ null。
   // handle UNIQUE 制約違反は SQLite が投げる、service 側で catch する。
   async updateById(
+    db: DB,
     id: string,
     patch: { name: string; handle: string },
   ): Promise<StoredUser | null> {

@@ -14,7 +14,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "tsx server/lib/seed.ts"
+    "db:seed": "tsx server/lib/seed.ts",
+    "d1:migrate": "wrangler d1 migrations apply twitter-clone --remote",
+    "deploy": "pnpm build:web && wrangler deploy"
   },
   "dependencies": {
     "@fontsource-variable/wix-madefor-text": "^5.2.8",
@@ -33,6 +35,7 @@
     "tailwindcss": "^4.3.2"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260710.1",
     "@hono/node-server": "^2.0.8",
     "@tanstack/react-query-devtools": "^5.101.2",
     "@tanstack/router-devtools": "^1.167.0",
@@ -46,6 +49,7 @@
     "tsx": "^4.23.0",
     "typescript": "^7.0.2",
     "vite": "^8.1.4",
+    "wrangler": "^4.110.0",
     "zod": "^4.4.3"
   }
 }

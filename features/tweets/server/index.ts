@@ -20,6 +20,7 @@ const tweets = new Hono<{ Variables: AuthVariables }>()
   .get("/", zv("query", listQuerySchema), async (c) => {
     const { authorId, cursor } = c.req.valid("query");
     const currentUser = c.get("currentUser");
+    const db = c.get("db");
     // cursor 有りなら decode、壊れてたら 400。
     let decoded: { createdAt: string; id: string } | undefined;
     if (cursor) {
@@ -27,7 +28,7 @@ const tweets = new Hono<{ Variables: AuthVariables }>()
       if (!parsed) throw ApiError.validationFailed({ cursor: "invalid cursor" });
       decoded = parsed;
     }
-    const data = await tweetsService.list(currentUser.id, {
+    const data = await tweetsService.list(db, currentUser.id, {
       authorId,
       cursor: decoded,
     });
@@ -38,7 +39,8 @@ const tweets = new Hono<{ Variables: AuthVariables }>()
   .post("/", zv("json", createTweetWireSchema), async (c) => {
     const input = c.req.valid("json");
     const currentUser = c.get("currentUser");
-    const tweet = await createTweet(input, currentUser.id);
+    const db = c.get("db");
+    const tweet = await createTweet(db, input, currentUser.id);
     return c.json(tweet, 201);
   });
 

@@ -378,9 +378,44 @@ type ApiErrorBody = {
 
 `features/<domain>/schema.ts` に `handleSchema`, `nameSchema` のような **field 単位の共有 schema** を切り、BE の validation と FE の client-side check で同じ regex/制約を使う。message も同じ (BE/FE で乖離しない、UX 一貫)。
 
+## Cloudflare Workers 対応 (request-scoped DB)
+
+Node singleton パターンから **request-scoped な db 注入**に移行した (Cloudflare Workers の Isolate モデル対応)。
+
+### 変更点
+
+- **`db.ts` は type だけ**: `export type DB = BaseSQLiteDatabase<"async", unknown>` — libSQL / D1 どちらも継承する共通 base
+- **runtime は entry 分離**: `db-node.ts` (`@libsql/client`), `db-worker.ts` (`drizzle-orm/d1`)。app.ts はどちらも import しない (Workers bundle への Node 依存混入回避)
+- **`withDb(resolver)` middleware**: `c.set("db", resolver(c))`。resolver は entry file (`server/index.ts` / `server/worker.ts`) が組む
+- **app.ts は builder function**: `buildRoutes(dbMiddleware)` に切り出し、entry file から呼び出す
+- **全 repository / service / usecase の signature に `db: DB` を第一引数追加**
+  - repository: `usersRepository.findById(db, id)`
+  - service: `usersService.updateProfile(db, currentUserId, input)`
+  - usecase: `createTweet(db, input, currentUserId)`
+- **route は `const db = c.get("db")` を掴んで下流に渡す**
+
+### なぜ signature 明示 (`db` を第一引数) にしたか
+
+- **依存が可視化される**: どの関数が DB を触るか signature で分かる (AsyncLocalStorage 等の暗黙注入と対比)
+- **test 時に mock DB を渡しやすい**: 引数なので差し替え自由
+- **Cloudflare Workers の実装型に自然**: env binding を per-request で流す設計と噛み合う
+- コストとしては全 signature に 1 引数追加、変更点が広いが機械的
+
+### D1 との差分で気付いた点
+
+- `.returning()` は D1 でも動く (SQLite compatible)
+- `crypto.randomUUID()` は Workers でも Node でも同名で使える (共通)
+- migration SQL は SQLite 互換なので **drizzle-kit の生成物をそのまま `wrangler d1 migrations apply`** に流せる
+- `wrangler d1 execute --file` で seed SQL を流せる (seed.ts は Node 専用のまま残置)
+- Workers bundle は `@libsql/client` を pull しない構成に分離する必要がある (`db-node.ts` / `db-worker.ts` の物理分離)
+
+### Static assets との同 origin 配信
+
+`wrangler.jsonc` の `assets` binding で FE を配信する時、`/api/*` にも SPA fallback が効いてしまうので **`run_worker_first: ["/api/*"]`** で Worker を先に走らせる。設定漏れると /api が index.html を返す。
+
 ## 未確定 (次スライスで検証)
 
-なし (Cloudflare deploy に着手予定)
+なし (mock auth からの本物 auth 化、Media upload、Mention/Retweet が Tier A に残っている)
 
 ## 検証済み (実装で確定)
 
@@ -398,3 +433,4 @@ type ApiErrorBody = {
 | self-ref FK (reply の parent) | `text().references((): AnySQLiteColumn => tweets.id)` で型注釈経由、cascade は初期 CREATE 時のみ効く (ALTER TABLE は制限あり) | tweets reply |
 | cursor pagination | opaque `base64url(createdAt\|id)`、tuple 比較を or/and 展開、page size は server hardcode | tweets cursor |
 | 統一 error shape | `{code, message, fields?}` bare、`ApiError` + `apiErrorHandler` + `zv` wrapper で全 endpoint 揃える。BE/FE で `handleSchema` などを共有 | updateProfile |
+| request-scoped DB | `db.ts` は type only、Node/Workers factory を entry で選択。全 repository/service/usecase の signature に `db: DB` 第一引数を追加。app.ts は builder 化。static assets と同 origin 配信は `run_worker_first: ["/api/*"]` | Cloudflare Workers deploy |

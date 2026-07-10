@@ -1,7 +1,9 @@
-import { db } from "./db";
+import { createNodeDb } from "./db-node";
 import { users } from "../../features/users/server/table";
 import { tweets } from "../../features/tweets/server/table";
 import { SEED_USER_ID } from "./currentUser";
+
+const db = createNodeDb();
 
 // 開発用の初期データ投入。冪等 (onConflictDoNothing) で繰り返し実行安全。
 async function seed() {

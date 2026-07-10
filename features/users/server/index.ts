@@ -15,7 +15,8 @@ const users = new Hono<{ Variables: AuthVariables }>()
   // GET /api/users/by-handle/:handle — handle で 1 件取得、無ければ ApiError.notFound。
   .get("/by-handle/:handle", async (c) => {
     const handle = c.req.param("handle");
-    const user = await usersService.getByHandle(handle);
+    const db = c.get("db");
+    const user = await usersService.getByHandle(db, handle);
     if (!user) throw ApiError.notFound("user not found");
     return c.json(user);
   })
@@ -24,7 +25,8 @@ const users = new Hono<{ Variables: AuthVariables }>()
   .put("/me", zv("json", updateProfileWireSchema), async (c) => {
     const input = c.req.valid("json");
     const currentUser = c.get("currentUser");
-    const updated = await usersService.updateProfile(currentUser.id, input);
+    const db = c.get("db");
+    const updated = await usersService.updateProfile(db, currentUser.id, input);
     return c.json(updated);
   });
 

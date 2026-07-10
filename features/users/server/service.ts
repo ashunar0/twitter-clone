@@ -1,5 +1,6 @@
 import type { User } from "../type";
 import type { UpdateProfileWire } from "../schema";
+import type { DB } from "../../../server/lib/db";
 import { ApiError } from "../../../server/lib/errors";
 import { usersRepository, type StoredUser } from "./repository";
 
@@ -16,30 +17,31 @@ function toWire(row: StoredUser): User {
 
 export const usersService = {
   // id で 1 件取得。存在しなければ null。
-  async getById(id: string): Promise<User | null> {
-    const row = await usersRepository.findById(id);
+  async getById(db: DB, id: string): Promise<User | null> {
+    const row = await usersRepository.findById(db, id);
     return row ? toWire(row) : null;
   },
   // handle で 1 件取得。存在しなければ null。
-  async getByHandle(handle: string): Promise<User | null> {
-    const row = await usersRepository.findByHandle(handle);
+  async getByHandle(db: DB, handle: string): Promise<User | null> {
+    const row = await usersRepository.findByHandle(db, handle);
     return row ? toWire(row) : null;
   },
   // 自分の profile (name / handle) を更新する。
   // handle 重複は事前 check + UNIQUE 制約 catch の 2 段構え (race を UNIQUE で最終防衛)。
   async updateProfile(
+    db: DB,
     currentUserId: string,
     input: UpdateProfileWire,
   ): Promise<User> {
     // 事前 check: 他人が同じ handle を使ってないか。
-    const existing = await usersRepository.findByHandle(input.handle);
+    const existing = await usersRepository.findByHandle(db, input.handle);
     if (existing && existing.id !== currentUserId) {
       throw ApiError.conflict("そのハンドルはすでに使われています", {
         handle: "already taken",
       });
     }
     try {
-      const row = await usersRepository.updateById(currentUserId, input);
+      const row = await usersRepository.updateById(db, currentUserId, input);
       if (!row) throw ApiError.notFound("user not found");
       return toWire(row);
     } catch (err) {
@@ -54,7 +56,7 @@ export const usersService = {
   },
 };
 
-// SQLite (libsql) の UNIQUE 制約違反かを判定する。
+// SQLite (libsql / D1) の UNIQUE 制約違反かを判定する (両ドライバとも同じ文字列を吐く)。
 function isUniqueConstraintError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
   return /UNIQUE constraint failed/i.test(err.message);

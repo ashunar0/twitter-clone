@@ -1,0 +1,28 @@
+/**
+ * Cloudflare Workers 設定。1 Worker で FE 静的 (assets) + BE API (fetch handler) を同一 origin 配信する。
+ *
+ * - main: fetch handler (API 用)。/api/* だけがこの Worker まで届く
+ * - assets: Vite build output (dist/) を配信。not_found_handling=single-page-application で SPA fallback
+ * - d1_databases: DB binding (env.DB として渡る)
+ *
+ * database_id は初期は placeholder、`wrangler d1 create twitter-clone` の出力で置き換える
+ */
+{
+  "name": "twitter-clone",
+  "main": "server/worker.ts",
+  "compatibility_date": "2025-11-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "twitter-clone",
+      "database_id": "3268c4a2-f271-4282-bdb8-5a627bfb2f9e",
+      "migrations_dir": "drizzle"
+    }
+  ]
+}

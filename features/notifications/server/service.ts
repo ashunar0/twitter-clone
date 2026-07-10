@@ -1,4 +1,5 @@
 import type { ActorSummary, NotificationsListResponseWire } from "../schema";
+import type { DB } from "../../../server/lib/db";
 import { usersRepository, type StoredUser } from "../../users/server/repository";
 import { notificationsRepository, type StoredNotification } from "./repository";
 
@@ -23,12 +24,11 @@ function toActorSummary(row: StoredUser): ActorSummary {
 
 export const notificationsService = {
   // usecase から呼ばれる。特定 recipient に対して actor が起こした kind の通知を記録する。
-  async record(input: {
-    kind: string;
-    recipientId: string;
-    actorId: string;
-  }): Promise<void> {
-    await notificationsRepository.insert({
+  async record(
+    db: DB,
+    input: { kind: string; recipientId: string; actorId: string },
+  ): Promise<void> {
+    await notificationsRepository.insert(db, {
       id: crypto.randomUUID(),
       recipientId: input.recipientId,
       kind: input.kind,
@@ -36,12 +36,15 @@ export const notificationsService = {
     });
   },
   // list: current user 宛の通知 + actor summary + unreadCount を返す (cross-domain read model)。
-  async list(currentUserId: string): Promise<NotificationsListResponseWire> {
-    const rows = await notificationsRepository.findByRecipient(currentUserId);
+  async list(
+    db: DB,
+    currentUserId: string,
+  ): Promise<NotificationsListResponseWire> {
+    const rows = await notificationsRepository.findByRecipient(db, currentUserId);
     const actorIds = [...new Set(rows.map((r) => r.actorId))];
     const [actors, unreadCount] = await Promise.all([
-      usersRepository.findByIds(actorIds),
-      notificationsRepository.countUnread(currentUserId),
+      usersRepository.findByIds(db, actorIds),
+      notificationsRepository.countUnread(db, currentUserId),
     ]);
     const actorMap = new Map(actors.map((a) => [a.id, a]));
     const actorSummaries: Record<string, ActorSummary> = {};
@@ -56,7 +59,7 @@ export const notificationsService = {
     };
   },
   // 全通知を既読にする。
-  async markAllRead(currentUserId: string): Promise<void> {
-    await notificationsRepository.markAllRead(currentUserId);
+  async markAllRead(db: DB, currentUserId: string): Promise<void> {
+    await notificationsRepository.markAllRead(db, currentUserId);
   },
 };
