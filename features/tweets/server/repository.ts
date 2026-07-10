@@ -1,8 +1,16 @@
-import { and, desc, eq, isNull, lt, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import type { DB } from "../../../server/lib/db";
-import { tweets, type NewTweetRow, type TweetRow } from "./table";
+import {
+  mentions,
+  tweets,
+  type MentionRow,
+  type NewMentionRow,
+  type NewTweetRow,
+  type TweetRow,
+} from "./table";
 
 export type StoredTweet = TweetRow;
+export type StoredMention = MentionRow;
 export type TweetCursor = { createdAt: string; id: string };
 
 // 1 page 20 件で固定。client 指定は受けない (server hardcode 規約)。
@@ -59,5 +67,19 @@ export const tweetsRepository = {
     const [inserted] = await db.insert(tweets).values(row).returning();
     if (!inserted) throw new Error("insert tweet failed");
     return inserted;
+  },
+};
+
+// mentions は tweet の associated table。owning feature = tweets なので同居させる。
+export const mentionsRepository = {
+  // 複数 mention を 1 クエリで挿入。同一 (tweetId, mentionedUserId) は onConflictDoNothing で冪等。
+  async insertMany(db: DB, rows: NewMentionRow[]): Promise<void> {
+    if (rows.length === 0) return;
+    await db.insert(mentions).values(rows).onConflictDoNothing();
+  },
+  // 複数 tweetId をまとめて取得 (enrichMany N+1 回避用)。
+  async findByTweetIds(db: DB, tweetIds: string[]): Promise<StoredMention[]> {
+    if (tweetIds.length === 0) return [];
+    return db.select().from(mentions).where(inArray(mentions.tweetId, tweetIds));
   },
 };

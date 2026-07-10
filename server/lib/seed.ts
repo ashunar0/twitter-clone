@@ -59,8 +59,8 @@ async function seed() {
   // tweets: 起点となる 3 件 + cursor 検証用ダミー 40 件。
   await db.insert(tweets).values([
     { id: "t1", authorId: asahi.user.id, body: "はじめてのつぶやきなのだ。" },
-    { id: "t2", authorId: zundamon.user.id, body: "ぼくもいるのだ。" },
-    { id: "t3", authorId: asahi.user.id, body: "アーキテクチャ検証中。" },
+    { id: "t2", authorId: zundamon.user.id, body: "@asahi ぼくもいるのだ。" },
+    { id: "t3", authorId: asahi.user.id, body: "@zundamon アーキテクチャ検証中。" },
   ]);
 
   const dummy = Array.from({ length: 40 }, (_, i) => {

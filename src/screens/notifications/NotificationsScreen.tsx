@@ -83,5 +83,6 @@ function NotificationItem({
 function describe(kind: string): string {
   if (kind === "follow") return "started following you.";
   if (kind === "reply") return "replied to your tweet.";
+  if (kind === "mention") return "mentioned you in a tweet.";
   return `did ${kind}.`;
 }

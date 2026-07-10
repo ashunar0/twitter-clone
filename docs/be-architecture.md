@@ -478,9 +478,56 @@ mock 時代の `withCurrentUser` (SEED_USER_ID 固定) → 本物 auth 切り替
 
 `__root.tsx` の `useEffect` で `session.isPending === false` かつ `!session.data` なら `/signin` へ redirect。`/signin` / `/signup` は public path として除外。
 
+## Mention 実装 (associated table + dedupe 通知)
+
+Twitter の `@handle` mention は tweet の attribute として **owning feature (tweets) に associated table を併置**する形で実装。
+
+### テーブル配置
+
+```
+features/tweets/server/
+├─ table.ts          ← tweets + mentions (両方 export、同 feature が複数 table を持つ)
+├─ repository.ts     ← tweetsRepository + mentionsRepository (同ファイルに併置)
+```
+
+- **1 feature = 1 aggregate**: 複数 table が同一 aggregate を成す時は同 feature に併置する (mentions は tweet の attribute)
+- **repository も同ファイル**: `tweetsRepository` と `mentionsRepository` を repository.ts に並置。分離するのは別 aggregate になった時 (今回は YAGNI で 1 ファイル)
+- **mentions PK は複合**: `(tweetId, mentionedUserId)`、両 FK cascade。同 tweet 内の同 handle 重複は 1 行に丸める (insertMany + onConflictDoNothing で冪等)
+- **業界標準**: Twitter/Instagram も mention は dedicated table を持つ (mention 一覧 endpoint / 検索 index のため)。parse-on-write (body だけ持って抽出は都度) は MVP 向け
+
+### mention 抽出と cross-feature 解決
+
+- **regex は BE/FE 揃える**: `/(?<![a-zA-Z0-9_])@([a-zA-Z0-9_]{3,15})(?![a-zA-Z0-9_])/g` — handleSchema と同じ 3〜15 [a-zA-Z0-9_] 制約
+  - **BE**: `features/tweets/server/usecases/createTweet.ts` で抽出 → mentions insert
+  - **FE**: `widgets/tweet-item/TweetItem.tsx` で抽出 → `<Link>` 装飾
+  - regex 定義は物理的に別ファイルだが、正体は「handle の形」なので handleSchema と乖離しない (handle schema 変更時は 2 箇所を揃えて直す)
+- **handle → userId 解決は cross-feature read**: `profilesRepository.findByHandles(db, handles)` を usecase から叩く (service→service 禁止、usecase→他 feature の repository read は OK)
+- **実在しない handle は無視**: mention 抽出結果を `findByHandles` の返り row 数と照合、resolve できたものだけ insert / notify。tweet 自体は成立させる (throw しない)
+
+### 通知の dedupe (reply と mention の重複回避)
+
+reply かつ本文で @parent-author を明示的に呼んだ場合、**reply 通知だけ発火し mention 通知はスキップ**。
+
+```ts
+// features/tweets/server/usecases/createTweet.ts (要点)
+if (parentAuthorId && parentAuthorId !== currentUserId) {
+  await notificationsService.record(db, { kind: "reply", recipientId: parentAuthorId, ... });
+}
+for (const uid of mentionedUserIds) {
+  if (uid === currentUserId) continue;       // self-mention skip
+  if (uid === parentAuthorId) continue;      // reply 通知と重複するので skip
+  await notificationsService.record(db, { kind: "mention", recipientId: uid, ... });
+}
+```
+
+- **dedupe の帰属**: 「reply も mention も同じ actor が同じ recipient に打つ」重複回避 = **usecase 層**が判断すべき (rule は service に置かない規約)
+- **順序**: reply 先に発火 → mention はスキップ判定、の順で書く (逆にすると mention 先に打って reply でまた打つ二重発火が起きる)
+- Twitter も reply 通知優先で mention は打たない
+- **重要: `mentions` row と `notifications` row は独立**。reply 内の `@parent-author` は notification は dedupe されるが `mentions` row は insert する。structural fact (この tweet が誰を参照するか) は残す、push signal (通知) だけ抑制する分離。将来「mention された tweet 一覧」endpoint を作る時に reply も含む必要があるため。follow を外しても通知履歴が残るのと同じ「関係 entity と side effect entity のライフサイクル分離」規約の適用例
+
 ## 未確定 (次スライスで検証)
 
-なし (Media upload、Mention/Retweet、UI トンマナ / 記事化 が Tier A に残っている)
+なし (Media upload、Retweet、UI トンマナ / 記事化 が Tier A に残っている)
 
 ## 検証済み (実装で確定)
 
@@ -500,3 +547,5 @@ mock 時代の `withCurrentUser` (SEED_USER_ID 固定) → 本物 auth 切り替
 | 統一 error shape | `{code, message, fields?}` bare、`ApiError` + `apiErrorHandler` + `zv` wrapper で全 endpoint 揃える。BE/FE で `handleSchema` などを共有 | updateProfile |
 | request-scoped DB | `db.ts` は type only、Node/Workers factory を entry で選択。全 repository/service/usecase の signature に `db: DB` 第一引数を追加。app.ts は builder 化。static assets と同 origin 配信は `run_worker_first: ["/api/*"]` | Cloudflare Workers deploy |
 | Auth 本実装 + users/profiles split | better-auth (email/password) + `usePlural: true` + `databaseHooks` で profile auto-create。features/users = auth、features/profiles = identity に分離。`nodejs_compat` + `BETTER_AUTH_SECRET` (Cloudflare secret) + `trustedOrigins` で Workers 動作 | better-auth 導入 |
+| associated table (1 feature に複数 table) | owning feature (aggregate) の table.ts / repository.ts に併置。mentions は tweets 内。分離するのは別 aggregate になった時 | mention |
+| 通知の dedupe (reply × mention) | usecase 層で reply 通知先を先に確定 → mention list からその userId (と self) を除外して発火。順序は reply 先に | mention |

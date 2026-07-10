@@ -56,6 +56,18 @@ export const profilesRepository = {
       .innerJoin(users, eq(profiles.userId, users.id))
       .where(inArray(profiles.userId, userIds));
   },
+  // 複数 handle をまとめて解決 (mention の @handle → userId 解決用)。
+  async findByHandles(
+    db: DB,
+    handles: string[],
+  ): Promise<StoredProfileWithUser[]> {
+    if (handles.length === 0) return [];
+    return db
+      .select({ profile: profiles, user: users })
+      .from(profiles)
+      .innerJoin(users, eq(profiles.userId, users.id))
+      .where(inArray(profiles.handle, handles));
+  },
   // handle だけ更新 (name は users 側で管理)。
   async updateHandle(
     db: DB,

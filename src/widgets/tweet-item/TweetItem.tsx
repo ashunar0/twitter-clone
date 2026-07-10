@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { Link } from "@tanstack/react-router";
 import { Heart, MessageCircle } from "lucide-react";
 import type { Tweet } from "@features/tweets/type";
 import type { AuthorSummary } from "@features/tweets/schema";
@@ -6,6 +7,36 @@ import { useToggleLikeMutation } from "@features/likes/client/mutations";
 import { useCreateTweetMutation } from "@features/tweets/client/mutations";
 import { useCurrentProfileQuery } from "@features/profiles/client/queries";
 import { Button } from "@/shared/ui/button";
+
+// body 内の @handle を profile link に装飾する。handle は 3〜15 文字 [a-zA-Z0-9_]。
+// BE 側の抽出 regex (features/tweets/server/usecases/createTweet.ts) と揃える。
+const MENTION_RE = /(?<![a-zA-Z0-9_])@([a-zA-Z0-9_]{3,15})(?![a-zA-Z0-9_])/g;
+function renderTweetBody(body: string) {
+  const parts: (string | { handle: string; key: number })[] = [];
+  let last = 0;
+  let key = 0;
+  for (const m of body.matchAll(MENTION_RE)) {
+    const idx = m.index ?? 0;
+    if (idx > last) parts.push(body.slice(last, idx));
+    parts.push({ handle: m[1] ?? "", key: key++ });
+    last = idx + m[0].length;
+  }
+  if (last < body.length) parts.push(body.slice(last));
+  return parts.map((p) =>
+    typeof p === "string" ? (
+      p
+    ) : (
+      <Link
+        key={`m${p.key}`}
+        to="/u/$handle"
+        params={{ handle: p.handle }}
+        className="text-sky-600 hover:underline"
+      >
+        @{p.handle}
+      </Link>
+    ),
+  );
+}
 
 const MAX_LENGTH = 280;
 
@@ -34,7 +65,7 @@ export function TweetItem({
         </span>
         <span className="ml-2">@{author?.handle ?? "unknown"}</span>
       </div>
-      <p className="whitespace-pre-wrap">{tweet.body}</p>
+      <p className="whitespace-pre-wrap">{renderTweetBody(tweet.body)}</p>
       <div className="mt-2 flex items-center justify-between">
         <span className="text-xs text-neutral-400">{tweet.createdAt}</span>
         <div className="flex items-center gap-4">
