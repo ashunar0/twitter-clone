@@ -12,6 +12,7 @@ import {
 import { notifications } from "../../features/notifications/server/table";
 import { likes } from "../../features/likes/server/table";
 import { follows } from "../../features/follows/server/table";
+import { media } from "../../features/media/server/table";
 
 // 開発用の初期データ投入。auth ドメインを better-auth 経由で作るため、REST API を叩かず
 // getAuth(db).api.signUpEmail を internal 呼び出しする。冪等ではなく、毎回 wipe → 再構築する。
@@ -23,6 +24,7 @@ async function seed() {
   await db.delete(notifications);
   await db.delete(likes);
   await db.delete(follows);
+  await db.delete(media);
   await db.delete(tweets);
   await db.delete(profiles);
   await db.delete(sessions);

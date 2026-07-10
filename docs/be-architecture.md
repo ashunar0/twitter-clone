@@ -525,9 +525,78 @@ for (const uid of mentionedUserIds) {
 - Twitter も reply 通知優先で mention は打たない
 - **重要: `mentions` row と `notifications` row は独立**。reply 内の `@parent-author` は notification は dedupe されるが `mentions` row は insert する。structural fact (この tweet が誰を参照するか) は残す、push signal (通知) だけ抑制する分離。将来「mention された tweet 一覧」endpoint を作る時に reply も含む必要があるため。follow を外しても通知履歴が残るのと同じ「関係 entity と side effect entity のライフサイクル分離」規約の適用例
 
+## Media (R2 storage 抽象 + upload endpoint + tweet 紐付け)
+
+### storage 抽象 = DB 抽象の対称拡張
+
+R2 binding も D1 binding と同じで Workers 専用。dev の Node で動かすため、**db の runtime 二重化パターン (type only + node/worker factory) を storage にそのまま移植**した。
+
+```
+server/lib/
+├─ db.ts             type DB (共通型)
+├─ db-node.ts        libSQL local
+├─ db-worker.ts      D1 binding
+├─ storage.ts        type Storage (共通型)
+├─ storage-node.ts   public/dev-uploads/ に FS 書き
+├─ storage-worker.ts R2 binding.put + MEDIA_PUBLIC_URL 参照
+├─ withDb.ts         c.set("db", resolver(c))
+└─ withStorage.ts    c.set("storage", resolver(c))
+```
+
+- **buildRoutes は middleware 2 個受け取る**: `buildRoutes(dbMiddleware, storageMiddleware)`。entry file (Node/Workers) 側でどちらのモード用の resolver を組んで渡すか決める
+- **抽象の粒度**: `Storage.put(key, body, mime) / publicUrl(key)` だけ。R2 の詳細 (multipart upload / signed URL) はまだ露出させない (YAGNI、抽象は使う機能でだけ膨らませる)
+- **dev の serve は Vite に任せる**: `public/dev-uploads/` に置けば Vite が `/dev-uploads/<key>` で配る。BE から serve endpoint を書かなくていい (SPA 側と同じ配線を使い回す)
+- **key の生成**: `${uuid}${ext}` を service 側で採番。id を主にして拡張子は mime から補う (dev/prod で URL 一致)
+- **payoff**: 「binding 抽象化は DB 特有の話じゃなく、複数 binding に一般化できる」= 記事化の伸びしろ。将来 KV / Vectorize 等が増えても同じ形
+
+### upload flow (proxy 派)
+
+- **client → POST /api/media (multipart form)** → service が storage に put + media 行 insert → `{id, url, mimeType}` を返す
+- **presigned URL 派 (大規模)** を採らなかった理由: Worker の payload 上限 100 MB 内で足りる、認証も Cookie セッションでそのまま乗せられる、client 実装が simpler
+- **rpc 規約 (throwIfNotOk 経由) は維持**: Hono client は `zValidator("form")` 前提の型なので、multipart は素の `fetch` を使う。ただし失敗時の error shape parse は `throwIfNotOk` を通して統一 (rpc.ts の中で吸収)
+
+### tweet との紐付け (2-step + uploader guard)
+
+1. `POST /api/media` で orphan media (tweetId=null) を作成
+2. `POST /api/tweets { mediaIds: [...] }` で tweet 作成 → `createTweet` usecase が `mediaRepository.attachToTweet(mediaIds, tweetId, currentUserId)` を叩き `tweet_id` を UPDATE
+
+**Uploader guard は「silently skip」で吸収する** (規約):
+```ts
+// features/media/server/repository.ts (要点)
+async attachToTweet(db, mediaIds, tweetId, uploaderId) {
+  return db.update(media).set({ tweetId })
+    .where(and(
+      inArray(media.id, mediaIds),
+      eq(media.uploaderId, uploaderId),   // ← 他人 upload は here で filter
+      isNull(media.tweetId),               // ← 既 attach 済は無視
+    ))
+    .returning();
+}
+```
+
+- 他 uploader / 既 attach 済 / 存在しない id は **update が 0 row 返すだけ、tweet 作成自体は成立**
+- validation error にせず「本文は通す + media だけ silently 抜ける」= Twitter の実装挙動と同じ (client の retry を招かない)
+- **これが許されるのは「media 添付は tweet の副次情報」だから**。attach 成否がユーザーに露出しない場面のみこの pattern を使う。「必須の attach」なら 400 で弾く方向へ (今回は用途に対して silently が正しい)
+
+### media は独立 feature (owning binding = features/media/)
+
+- `features/media/` が **R2 binding という新 storage backend の owner**。tweets からは cross-feature read enrichment で `mediaService.listByTweetIds(db, storage, tweetIds)` を叩く
+- avatar / cover 等の将来拡張にも使い回せる位置に切っておく (今 avatar は better-auth の image URL に依存、独立化は伸びしろ)
+- **repository/service の signature に `storage: Storage` を追加**する対象は「public URL を wire 形で返す」場面のみ。DB のみ触る CRUD 系は不要 (依存を可視化する = 引数明示規約)
+
+### FE side の cache invalidation
+
+- 通常 tweet 作成 (media 無し) は optimistic 差し替えだけで確定 (retweetState/mediaSummaries は空のまま)
+- **media 付き tweet の場合は `queryClient.invalidateQueries(listKey)` を呼ぶ**。理由: mediaSummaries は cache に無い (optimistic 時点で FE は attach 結果を知らない)。retweet toggle と同じ「shape は同じだが cross-domain enrichment が新規に要る」パターン
+
+### 未実装 / 意図的に残した点
+
+- **R2 object の orphan cleanup**: tweet 削除は media 行を cascade で消すが、R2 object は残る。定期 job で棚卸しする想定 (次スライス対象、規約論点になり得る)
+- **画像リサイズ / 幅高メタデータ**: EXIF 抜き / thumbnail 生成なし。Cloudflare Images 導入で吸収する将来スライス候補
+
 ## 未確定 (次スライスで検証)
 
-なし (Media upload、Retweet、UI トンマナ / 記事化 が Tier A に残っている)
+なし (R2 object cleanup、UI トンマナ / 記事化 が Tier A に残っている)
 
 ## 検証済み (実装で確定)
 
@@ -549,3 +618,7 @@ for (const uid of mentionedUserIds) {
 | Auth 本実装 + users/profiles split | better-auth (email/password) + `usePlural: true` + `databaseHooks` で profile auto-create。features/users = auth、features/profiles = identity に分離。`nodejs_compat` + `BETTER_AUTH_SECRET` (Cloudflare secret) + `trustedOrigins` で Workers 動作 | better-auth 導入 |
 | associated table (1 feature に複数 table) | owning feature (aggregate) の table.ts / repository.ts に併置。mentions は tweets 内。分離するのは別 aggregate になった時 | mention |
 | 通知の dedupe (reply × mention) | usecase 層で reply 通知先を先に確定 → mention list からその userId (と self) を除外して発火。順序は reply 先に | mention |
+| storage binding 抽象化 | db 抽象と同じパターン: 共通 type + node/worker factory + withStorage middleware。buildRoutes は db/storage 2 middleware 受け取る | media |
+| upload flow | Worker proxy (POST /api/media multipart) + 2-step attach (media create → tweet に mediaIds で紐付け) | media |
+| 権限違反の silent-skip | 「副次情報」の attach は uploader 違反を 400 にせず silently 抜く (client retry を招かない = Twitter 挙動)。「必須」の場合はこの pattern を使わない | media attachToTweet |
+| FE cache invalidation | media 付き tweet 作成は cross-domain enrichment (mediaSummaries) が新規に要る → onSuccess で invalidateQueries を追加、shape 変更ではないが refetch する | media / retweet |

@@ -4,6 +4,8 @@ import { zv } from "../../../server/lib/zv";
 import { z } from "zod";
 import { createTweetWireSchema } from "../schema";
 import { withCurrentUser, type AuthVariables } from "../../../server/lib/currentUser";
+import type { StorageVariables } from "../../../server/lib/withStorage";
+import type { DbVariables } from "../../../server/lib/withDb";
 import { tweetsService } from "./service";
 import { decodeTweetCursor } from "./cursor";
 import { createTweet } from "./usecases/createTweet";
@@ -16,13 +18,16 @@ const listQuerySchema = z.object({
   cursor: z.string().optional(),
 });
 
-const tweets = new Hono<{ Variables: AuthVariables }>()
+const tweets = new Hono<{
+  Variables: AuthVariables & DbVariables & StorageVariables;
+}>()
   .use("*", withCurrentUser)
   // GET /api/tweets?authorId=&cursor=... — 1 page 分の tweets + author summary + likeState + nextCursor。
   .get("/", zv("query", listQuerySchema), async (c) => {
     const { authorId, cursor } = c.req.valid("query");
     const currentUser = c.get("currentUser");
     const db = c.get("db");
+    const storage = c.get("storage");
     // cursor 有りなら decode、壊れてたら 400。
     let decoded: { createdAt: string; id: string } | undefined;
     if (cursor) {
@@ -30,7 +35,7 @@ const tweets = new Hono<{ Variables: AuthVariables }>()
       if (!parsed) throw ApiError.validationFailed({ cursor: "invalid cursor" });
       decoded = parsed;
     }
-    const data = await tweetsService.list(db, currentUser.id, {
+    const data = await tweetsService.list(db, storage, currentUser.id, {
       authorId,
       cursor: decoded,
     });

@@ -8,6 +8,9 @@ import type {
   TweetsListResponseWire,
 } from "../schema";
 import type { DB } from "../../../server/lib/db";
+import type { Storage } from "../../../server/lib/storage";
+import type { MediaSummary } from "../../media/schema";
+import { mediaService } from "../../media/server/service";
 import {
   profilesRepository,
   type StoredProfileWithUser,
@@ -44,10 +47,14 @@ function toAuthorSummary(row: StoredProfileWithUser): AuthorSummary {
 
 export const tweetsService = {
   // create: current user 名義で 1 件作成する。parentId 有りなら reply、retweetOfId 有りなら RT。
-  // id / createdAt は server 側で自動採番。
+  // id / createdAt は server 側で自動採番。mediaIds は usecase が別途 attachToTweet で紐付ける (service は low-level に保つ)。
   async create(
     db: DB,
-    input: CreateTweetWire & { retweetOfId?: string | null },
+    input: {
+      body: string;
+      parentId?: string | null;
+      retweetOfId?: string | null;
+    },
     currentUserId: string,
   ): Promise<Tweet> {
     const row = await tweetsRepository.insert(db, {
@@ -66,8 +73,10 @@ export const tweetsService = {
   },
   // list: 直近 tweets (or 特定 author の) を 1 page 取得、cursor で seek pagination する。
   // 1 page に含まれる RT tweet の元 tweet + author を originalTweets map で解決 (page 外も含む)。
+  // media enrichment は media feature の service を叩いて mediaSummaries を組む。
   async list(
     db: DB,
+    storage: Storage,
     currentUserId: string,
     filter?: { authorId?: string; cursor?: TweetCursor },
   ): Promise<TweetsListResponseWire> {
@@ -99,19 +108,27 @@ export const tweetsService = {
     // したがって likeState の key は tweetIds ∪ originalIds = displayIds。
     const displayIds = [...new Set([...tweetIds, ...originalIds])];
 
-    // 別 feature (profiles, likes) + 自 feature の cross reads を並列。
-    const [profileRows, likeMineIds, likeCountsMap, retweetCountsMap, retweetMineIds] =
-      await Promise.all([
-        profilesRepository.findByUserIds(db, [...new Set(authorIds)]),
-        likesRepository.findMineIds(db, displayIds, currentUserId),
-        likesRepository.countByTweetIds(db, displayIds),
-        tweetsRepository.countRetweetsByOriginalIds(db, originalIds),
-        tweetsRepository.findMineRetweetOriginalIds(
-          db,
-          originalIds,
-          currentUserId,
-        ),
-      ]);
+    // 別 feature (profiles, likes, media) + 自 feature の cross reads を並列。
+    const [
+      profileRows,
+      likeMineIds,
+      likeCountsMap,
+      retweetCountsMap,
+      retweetMineIds,
+      mediaMap,
+    ] = await Promise.all([
+      profilesRepository.findByUserIds(db, [...new Set(authorIds)]),
+      likesRepository.findMineIds(db, displayIds, currentUserId),
+      likesRepository.countByTweetIds(db, displayIds),
+      tweetsRepository.countRetweetsByOriginalIds(db, originalIds),
+      tweetsRepository.findMineRetweetOriginalIds(
+        db,
+        originalIds,
+        currentUserId,
+      ),
+      // media は display 対象 tweet に紐づいたものを取る (RT 行自体は body 空で media 無し)。
+      mediaService.listByTweetIds(db, storage, displayIds),
+    ]);
 
     const authorSummaries: Record<string, AuthorSummary> = {};
     for (const row of profileRows) {
@@ -146,12 +163,16 @@ export const tweetsService = {
     const nextCursor =
       rows.length === TWEETS_PAGE_SIZE && last ? encodeTweetCursor(last) : null;
 
+    const mediaSummaries: Record<string, MediaSummary[]> = {};
+    for (const [tweetId, arr] of mediaMap) mediaSummaries[tweetId] = arr;
+
     return {
       tweets: rows.map(toWire),
       authorSummaries,
       likeState,
       retweetState,
       originalTweets,
+      mediaSummaries,
       nextCursor,
     };
   },

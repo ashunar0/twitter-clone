@@ -4,6 +4,7 @@ import type { CreateTweetWire } from "../../schema";
 import type { Tweet } from "../../type";
 import { tweetsService } from "../service";
 import { mentionsRepository } from "../repository";
+import { mediaRepository } from "../../../media/server/repository";
 import { notificationsService } from "../../../notifications/server/service";
 import { profilesRepository } from "../../../profiles/server/repository";
 
@@ -34,6 +35,17 @@ export async function createTweet(
   }
 
   const created = await tweetsService.create(db, input, currentUserId);
+
+  // mediaIds が来てれば current user が上げた orphan media を tweet に紐付ける (uploader 権限確認込み)。
+  // 別 uploader / 既 attach 済 / 存在しない id は attachToTweet 側で silently skip される。
+  if (input.mediaIds.length > 0) {
+    await mediaRepository.attachToTweet(
+      db,
+      input.mediaIds,
+      created.id,
+      currentUserId,
+    );
+  }
 
   // mention 抽出 → 実在する handle だけ userId に解決。存在しない handle は無視 (tweet 自体は成立)。
   const handles = extractMentionHandles(input.body);

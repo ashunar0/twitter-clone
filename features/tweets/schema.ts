@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { mediaSummarySchema } from "../media/schema";
 
 // tweet 単体の wire 形。
 // - parentId は reply 元の tweet id (通常 tweet は null)
@@ -51,22 +52,29 @@ export type OriginalTweetWire = z.infer<typeof originalTweetSchema>;
 
 // GET /api/tweets の response (1 page)。
 // nextCursor が非 null なら「続きあり」、null なら最後の page。
+// mediaSummaries[tweetId] は tweet に紐づく media 配列 (無ければ key 自体なし)。
 export const tweetsListResponseSchema = z.object({
   tweets: z.array(tweetWireSchema),
   authorSummaries: z.record(z.string(), authorSummarySchema),
   likeState: likeStateSchema,
   retweetState: retweetStateSchema,
   originalTweets: z.record(z.string(), originalTweetSchema),
+  mediaSummaries: z.record(z.string(), z.array(mediaSummarySchema)),
   nextCursor: z.string().nullable(),
 });
 export type TweetsListResponseWire = z.infer<typeof tweetsListResponseSchema>;
 
 // server 自動 set の id / createdAt / authorId (= current user) を落とした create 用。
 // retweetOfId も client からは指定させない (retweet は専用 endpoint POST /api/tweets/:id/retweet を使う)。
-export const createTweetWireSchema = tweetWireSchema.omit({
-  id: true,
-  createdAt: true,
-  authorId: true,
-  retweetOfId: true,
-});
+// mediaIds は先に POST /api/media で orphan の media 行を作っておき、その id 配列を渡す (最大 4)。
+export const createTweetWireSchema = tweetWireSchema
+  .omit({
+    id: true,
+    createdAt: true,
+    authorId: true,
+    retweetOfId: true,
+  })
+  .extend({
+    mediaIds: z.array(z.string()).max(4).default([]),
+  });
 export type CreateTweetWire = z.infer<typeof createTweetWireSchema>;

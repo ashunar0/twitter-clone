@@ -1,4 +1,5 @@
 import type { AuthorSummary, OriginalTweetWire, TweetWire } from "./schema";
+import type { MediaSummary } from "../media/schema";
 
 // wire == domain な entity は alias。
 export type Tweet = TweetWire;
@@ -21,4 +22,5 @@ export type TweetsData = {
   likeState: LikeState;
   retweetState: RetweetState;
   originalTweets: Record<string, OriginalTweetWire>;
+  mediaSummaries: Record<string, MediaSummary[]>;
 };

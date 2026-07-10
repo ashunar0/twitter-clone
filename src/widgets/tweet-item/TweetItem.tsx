@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { Heart, MessageCircle, Repeat2 } from "lucide-react";
 import type { Tweet } from "@features/tweets/type";
 import type { AuthorSummary } from "@features/tweets/schema";
+import type { MediaSummary } from "@features/media/schema";
 import { useToggleLikeMutation } from "@features/likes/client/mutations";
 import {
   useCreateTweetMutation,
@@ -54,6 +55,7 @@ export function TweetItem({
   mineLike,
   retweetCount,
   mineRetweet,
+  media,
 }: {
   tweet: Tweet;
   author: AuthorSummary | undefined;
@@ -62,6 +64,7 @@ export function TweetItem({
   mineLike: boolean;
   retweetCount: number;
   mineRetweet: boolean;
+  media?: MediaSummary[];
 }) {
   const toggleLike = useToggleLikeMutation();
   const toggleRetweet = useToggleRetweetMutation();
@@ -82,6 +85,22 @@ export function TweetItem({
         <span className="ml-2">@{author?.handle ?? "unknown"}</span>
       </div>
       <p className="whitespace-pre-wrap">{renderTweetBody(tweet.body)}</p>
+      {media && media.length > 0 && (
+        <div
+          className={`mt-2 grid gap-1 overflow-hidden rounded-lg ${
+            media.length === 1 ? "grid-cols-1" : "grid-cols-2"
+          }`}
+        >
+          {media.map((m) => (
+            <img
+              key={m.id}
+              src={m.url}
+              alt=""
+              className="max-h-72 w-full object-cover"
+            />
+          ))}
+        </div>
+      )}
       <div className="mt-2 flex items-center justify-between">
         <span className="text-xs text-neutral-400">{tweet.createdAt}</span>
         <div className="flex items-center gap-4">
@@ -155,7 +174,7 @@ function ReplyForm({
     e.preventDefault();
     if (disabled || !currentProfile) return;
     createTweet.mutate(
-      { body: body.trim(), parentId },
+      { body: body.trim(), parentId, mediaIds: [] },
       {
         onSuccess: () => {
           setBody("");

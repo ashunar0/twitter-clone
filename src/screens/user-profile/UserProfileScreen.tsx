@@ -93,6 +93,7 @@ export function UserProfileScreen({ handle }: { handle: string }) {
                   mineLike={tweets.likeState.mineIds.has(displayId)}
                   retweetCount={tweets.retweetState.counts[displayId] ?? 0}
                   mineRetweet={tweets.retweetState.mineIds.has(displayId)}
+                  media={tweets.mediaSummaries[displayId]}
                 />
               );
             })}

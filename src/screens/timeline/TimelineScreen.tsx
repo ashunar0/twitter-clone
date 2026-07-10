@@ -36,6 +36,7 @@ export function TimelineScreen() {
               mineLike={data.likeState.mineIds.has(displayId)}
               retweetCount={data.retweetState.counts[displayId] ?? 0}
               mineRetweet={data.retweetState.mineIds.has(displayId)}
+              media={data.mediaSummaries[displayId]}
             />
           );
         })}

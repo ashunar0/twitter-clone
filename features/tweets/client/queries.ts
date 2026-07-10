@@ -31,6 +31,7 @@ function selectFlattened(data: TweetsPagesCache): TweetsData {
   const retweetCounts: Record<string, number> = {};
   const retweetMineIds = new Set<string>();
   const originalTweets: TweetsData["originalTweets"] = {};
+  const mediaSummaries: TweetsData["mediaSummaries"] = {};
   for (const page of data.pages) {
     tweets.push(...page.tweets);
     Object.assign(authorSummaries, page.authorSummaries);
@@ -39,6 +40,7 @@ function selectFlattened(data: TweetsPagesCache): TweetsData {
     Object.assign(retweetCounts, page.retweetState.counts);
     for (const id of page.retweetState.mineIds) retweetMineIds.add(id);
     Object.assign(originalTweets, page.originalTweets);
+    Object.assign(mediaSummaries, page.mediaSummaries);
   }
   return {
     tweets,
@@ -46,6 +48,7 @@ function selectFlattened(data: TweetsPagesCache): TweetsData {
     likeState: { counts: likeCounts, mineIds: likeMineIds },
     retweetState: { counts: retweetCounts, mineIds: retweetMineIds },
     originalTweets,
+    mediaSummaries,
   };
 }
 

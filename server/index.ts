@@ -1,15 +1,19 @@
 import { serve } from "@hono/node-server";
 import { buildRoutes } from "./app";
 import { createNodeDb } from "./lib/db-node";
+import { createNodeStorage } from "./lib/storage-node";
 import { withDb } from "./lib/withDb";
+import { withStorage } from "./lib/withStorage";
 
 export type { AppType } from "./app";
 
 // dev / Node 環境での起動 entry。
 // - libSQL local file を module load 時に 1 個作って全 request で共有する (Node singleton パターン)
-// - Workers 版は server/worker.ts、per-request で env.DB から作る
+// - storage は public/dev-uploads/ に書く local FS impl (Vite が dev 時に serve)
+// - Workers 版は server/worker.ts、per-request で env.DB / env.MEDIA_BUCKET から作る
 const nodeDb = createNodeDb();
-const app = buildRoutes(withDb(() => nodeDb));
+const nodeStorage = createNodeStorage();
+const app = buildRoutes(withDb(() => nodeDb), withStorage(() => nodeStorage));
 
 const port = Number(process.env.PORT ?? 8787);
 serve({ fetch: app.fetch, port }, ({ port }) => {

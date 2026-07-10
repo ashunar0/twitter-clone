@@ -96,6 +96,7 @@ export function useCreateTweetMutation(currentProfile: Profile) {
       // cache が空 (初回 fetch 前) の場合は 1 page 分の空 shell を作って挿す。
       const emptyRetweet = { counts: {}, mineIds: [] as string[] };
       const emptyOriginalTweets = {};
+      const emptyMediaSummaries = {};
       queryClient.setQueryData<TweetsPagesCache>(listKey, (prev) => {
         if (!prev) {
           return {
@@ -106,6 +107,7 @@ export function useCreateTweetMutation(currentProfile: Profile) {
                 likeState: { counts: { [optimistic.id]: 0 }, mineIds: [] },
                 retweetState: emptyRetweet,
                 originalTweets: emptyOriginalTweets,
+                mediaSummaries: emptyMediaSummaries,
                 nextCursor: null,
               },
             ],
@@ -138,6 +140,7 @@ export function useCreateTweetMutation(currentProfile: Profile) {
               },
               retweetState: emptyRetweet,
               originalTweets: emptyOriginalTweets,
+              mediaSummaries: emptyMediaSummaries,
               nextCursor: null,
             };
         return { ...prev, pages: [nextFirst, ...restPages] };
@@ -147,7 +150,7 @@ export function useCreateTweetMutation(currentProfile: Profile) {
     onError: (_e, _input, ctx) => {
       if (ctx?.snapshot) queryClient.setQueryData(listKey, ctx.snapshot);
     },
-    onSuccess: (created) => {
+    onSuccess: (created, input) => {
       // reply は timeline を触っていない (optimistic 挿入なし)、差し替え不要。
       if (created.parentId) return;
       queryClient.setQueryData<TweetsPagesCache>(listKey, (prev) => {
@@ -168,6 +171,11 @@ export function useCreateTweetMutation(currentProfile: Profile) {
         // 想定外だが安全側: そのまま (次 refetch で整合)。
         return prev;
       });
+      // media 付き tweet は mediaSummaries が cache に無いので、server と揃えるため refetch する。
+      // (retweet mutation と同じで「行 shape 自体は変わらないが cross-domain enrichment が新規に必要」パターン)
+      if (input.mediaIds.length > 0) {
+        queryClient.invalidateQueries({ queryKey: listKey });
+      }
     },
   });
 }

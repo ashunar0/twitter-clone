@@ -1,29 +1,36 @@
 import { Hono, type MiddlewareHandler } from "hono";
 import follows from "../features/follows/server";
 import likes from "../features/likes/server";
+import media from "../features/media/server";
 import notifications from "../features/notifications/server";
 import profiles from "../features/profiles/server";
 import tweets from "../features/tweets/server";
 import users from "../features/users/server";
 import { apiErrorHandler } from "./lib/errors";
 
-// routes 構築ビルダー。entry file (Node / Workers) が withDb middleware を作って渡す。
-// - Node dev: withDb(() => nodeSingleton)
-// - Cloudflare Workers: withDb((c) => createWorkerDb(c.env.DB))
+// routes 構築ビルダー。entry file (Node / Workers) が withDb / withStorage middleware を作って渡す。
+// - Node dev: withDb(() => nodeSingleton), withStorage(() => nodeStorage)
+// - Cloudflare Workers: withDb((c) => createWorkerDb(c.env.DB)), withStorage((c) => createWorkerStorage(c.env.MEDIA_BUCKET, c.env.MEDIA_PUBLIC_URL))
 // AppType は ReturnType<typeof buildRoutes> で FE 側 RPC から参照する。
-export function buildRoutes(dbMiddleware: MiddlewareHandler) {
+export function buildRoutes(
+  dbMiddleware: MiddlewareHandler,
+  storageMiddleware: MiddlewareHandler,
+) {
   const app = new Hono();
   // throw された ApiError / HTTPException / 未処理 Error を全て統一 shape に reshape する。
   app.onError(apiErrorHandler);
   return app
-    // db を c.set("db", ...) する middleware を全 route の前に挟む。
+    // db / storage を c.set(...) する middleware を全 route の前に挟む。
     .use("*", dbMiddleware)
+    .use("*", storageMiddleware)
     // GET /api/health — liveness チェック用の最小 endpoint。
     .get("/api/health", (c) => c.json({ ok: true }))
     // follows sub-app を /api/follows に mount。
     .route("/api/follows", follows)
     // likes sub-app を /api/likes に mount。
     .route("/api/likes", likes)
+    // media sub-app を /api/media に mount (upload endpoint)。
+    .route("/api/media", media)
     // notifications sub-app を /api/notifications に mount。
     .route("/api/notifications", notifications)
     // profiles sub-app を /api/profiles に mount (public 表示 identity)。
