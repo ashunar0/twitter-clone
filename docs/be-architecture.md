@@ -315,10 +315,23 @@ follow を外しても notification は消えない (通知履歴は残す)。
 | Wire→domain 変換 | `toWire` (service 内 private) |
 | Auth middleware | `withCurrentUser` |
 
+## Cursor pagination パターン
+
+list endpoint を **1 page 分だけ返す + `nextCursor` を付与**する形に統一。cursor は server 側で **opaque token** (`base64url(createdAt|id)`) に閉じて、FE には string としてしか運ばない。
+
+### 検証で確定した規則
+
+- **cursor は複合キー必須**: `(createdAt, id)` の tuple で seek する。SQLite の `current_timestamp` は秒精度なので単独 `createdAt <` だと同秒内で重複/欠落が出る (seed 40 件同秒で実証済み)
+- **SQL は tuple 比較を or/and に展開**: Drizzle は row-value 未対応、`or(lt(createdAt, c.createdAt), and(eq(createdAt, c.createdAt), lt(id, c.id)))` で書く
+- **order も複合**: `orderBy(desc(createdAt), desc(id))` — cursor と揃える
+- **page size は server hardcode** (`TWEETS_PAGE_SIZE = 20`) — client 指定は受けない
+- **cursor helper は Node / Cloudflare Workers 両対応**: `btoa`/`atob` + URL-safe 変換で書く (Buffer 禁止)
+- **cursor 破損 = 400**: route で `decodeTweetCursor` が `null` を返したら `HTTPException(400, "invalid cursor")`
+- **nextCursor の判定**: `rows.length === PAGE_SIZE && last` なら next あり、そうでなければ null (境界ぴったりで終わる corner case は次 fetch が空返しで自然に閉じる)
+
 ## 未確定 (次スライスで検証)
 
-- **error shape の統一** — zValidator 失敗時の 400 response 形、HTTPException の status 使い分けはまだ観察していない。バリデーション失敗を意図的に踏むスライス (validation UI テスト、必須欠落 UX) で確定
-- **cursor pagination の型と実装** — tweets list は latest 50 固定、cursor 未実装。feed が伸びたスライスで導入
+- **error shape の統一** — zValidator 失敗時の 400 response 形、`HTTPException` の status 使い分けはまだ観察していない (cursor 破損は `HTTPException(400)` で 1 例出したが、zValidator との一貫性は未確定)。バリデーション失敗を意図的に踏むスライス (validation UI テスト、必須欠落 UX) で確定
 
 ## 検証済み (実装で確定)
 
@@ -333,3 +346,5 @@ follow を外しても notification は消えない (通知履歴は残す)。
 | 冪等 write + side effect | `.onConflictDoNothing().returning(...)` の length で新規判定、新規時のみ side effect 発火 | #16 followUser |
 | business rule の帰属 | service は low-level、rule (self-follow 禁止等) は usecase の `HTTPException` で | #16 followUser |
 | side effect entity のライフサイクル | 関係 entity と別 (follow 削除でも通知履歴は残す)、cascade は関係 entity のみ | #16 follows/notifications |
+| self-ref FK (reply の parent) | `text().references((): AnySQLiteColumn => tweets.id)` で型注釈経由、cascade は初期 CREATE 時のみ効く (ALTER TABLE は制限あり) | tweets reply |
+| cursor pagination | opaque `base64url(createdAt\|id)`、tuple 比較を or/and 展開、page size は server hardcode | tweets cursor |

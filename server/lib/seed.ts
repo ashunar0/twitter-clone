@@ -32,6 +32,19 @@ async function seed() {
     ])
     .onConflictDoNothing();
 
+  // cursor pagination の検証用ダミー tweet (40 件、id を zero-pad して DESC ソート安定に)。
+  // 全件同じ current_timestamp で入る想定 → (createdAt, id) の id tie-breaker を実地で叩く。
+  const dummy = Array.from({ length: 40 }, (_, i) => {
+    const idx = String(i).padStart(3, "0");
+    const author = i % 3 === 0 ? "u2" : SEED_USER_ID;
+    return {
+      id: `td${idx}`,
+      authorId: author,
+      body: `dummy tweet #${idx} — pagination test なのだ`,
+    };
+  });
+  await db.insert(tweets).values(dummy).onConflictDoNothing();
+
   console.log("seed OK");
 }
 

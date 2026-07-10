@@ -1,24 +1,36 @@
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { createTweetWireSchema } from "../schema";
 import { withCurrentUser, type AuthVariables } from "../../../server/lib/currentUser";
 import { tweetsService } from "./service";
+import { decodeTweetCursor } from "./cursor";
 import { createTweet } from "./usecases/createTweet";
 
-// list の query param 検証。authorId で filter 可 (省略時は全 timeline)。
-const listQuerySchema = z.object({ authorId: z.string().optional() });
+// list の query param 検証。authorId で filter 可、cursor で seek pagination。
+const listQuerySchema = z.object({
+  authorId: z.string().optional(),
+  cursor: z.string().optional(),
+});
 
 const tweets = new Hono<{ Variables: AuthVariables }>()
   .use("*", withCurrentUser)
-  // GET /api/tweets?authorId=... — 直近 tweets + author summary + likeState を返す。
+  // GET /api/tweets?authorId=&cursor=... — 1 page 分の tweets + author summary + likeState + nextCursor。
   .get("/", zValidator("query", listQuerySchema), async (c) => {
-    const { authorId } = c.req.valid("query");
+    const { authorId, cursor } = c.req.valid("query");
     const currentUser = c.get("currentUser");
-    const data = await tweetsService.list(
-      currentUser.id,
-      authorId ? { authorId } : undefined,
-    );
+    // cursor 有りなら decode、壊れてたら 400。
+    let decoded: { createdAt: string; id: string } | undefined;
+    if (cursor) {
+      const parsed = decodeTweetCursor(cursor);
+      if (!parsed) throw new HTTPException(400, { message: "invalid cursor" });
+      decoded = parsed;
+    }
+    const data = await tweetsService.list(currentUser.id, {
+      authorId,
+      cursor: decoded,
+    });
     return c.json(data);
   })
   // POST /api/tweets — current user 名義で 1 件作成、作成された Tweet を返す。

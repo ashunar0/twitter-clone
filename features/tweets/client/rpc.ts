@@ -6,11 +6,16 @@ import type {
 } from "../schema";
 
 export const tweetsRpc = {
-  // GET /api/tweets — 直近 tweets + author summary + likeState を取得 (optional filter)。
-  async list(filter?: { authorId?: string }): Promise<TweetsListResponseWire> {
-    const res = await rpcClient.api.tweets.$get({
-      query: filter?.authorId ? { authorId: filter.authorId } : {},
-    });
+  // GET /api/tweets — 1 page 分の tweets + author summary + likeState + nextCursor。
+  // cursor 未指定なら最新 page、指定ありならそれより古い page を返す (seek pagination)。
+  async list(filter?: {
+    authorId?: string;
+    cursor?: string;
+  }): Promise<TweetsListResponseWire> {
+    const query: Record<string, string> = {};
+    if (filter?.authorId) query.authorId = filter.authorId;
+    if (filter?.cursor) query.cursor = filter.cursor;
+    const res = await rpcClient.api.tweets.$get({ query });
     if (!res.ok) throw new Error("failed to fetch tweets");
     return (await res.json()) as TweetsListResponseWire;
   },

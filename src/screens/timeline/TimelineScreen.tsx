@@ -1,10 +1,13 @@
 import { useTweetsQuery } from "@features/tweets/client/queries";
 import { TweetItem } from "@/widgets/tweet-item/TweetItem";
+import { InfiniteScrollSentinel } from "@/shared/InfiniteScrollSentinel";
 import { TweetComposer } from "./TweetComposer";
 
 // public timeline 画面。read model (tweets + authorSummaries + likeState) を表示する。
+// 末尾 sentinel が可視域に入ったら fetchNextPage で次 page を追加ロードする。
 export function TimelineScreen() {
-  const { data, isLoading, error } = useTweetsQuery();
+  const query = useTweetsQuery();
+  const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } = query;
 
   if (isLoading) return <div className="p-6">Loading…</div>;
   if (error) return <div className="p-6 text-red-600">Failed to load</div>;
@@ -25,6 +28,17 @@ export function TimelineScreen() {
           />
         ))}
       </ul>
+      <InfiniteScrollSentinel
+        onVisible={() => fetchNextPage()}
+        disabled={!hasNextPage || isFetchingNextPage}
+        label={
+          isFetchingNextPage
+            ? "Loading more…"
+            : hasNextPage
+              ? ""
+              : "No more tweets."
+        }
+      />
     </main>
   );
 }

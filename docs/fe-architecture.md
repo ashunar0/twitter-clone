@@ -395,6 +395,82 @@ queryClient.invalidateQueries({ queryKey: tweetsKeys.list() });      // 特定 l
 
 - **生の `["tweets", ...]` を直書き禁止** — 必ず factory 経由 (typo 検知失敗を防ぐ)
 
+### Cursor pagination のキー設計
+
+**`useInfiniteQuery` を使うリストは、cursor を queryKey に含めない。** `pageParam` として TanStack Query に管理させる。
+
+```ts
+// ✅ 正
+export const tweetsKeys = {
+  list: () => [...tweetsKeys.lists()] as const,   // cursor は入れない
+};
+infiniteQueryOptions({
+  queryKey: tweetsKeys.list(),
+  queryFn: ({ pageParam }) => tweetsRpc.list({ cursor: pageParam ?? undefined }),
+  initialPageParam: null,
+  getNextPageParam: (last) => last.nextCursor,
+});
+```
+
+**理由:** cursor を key に埋めると page ごとに別 cache が立ち、mutation の `invalidateQueries` / `setQueryData` が全 page を狙えなくなる。同じ「list を伸ばしていく」概念は 1 つの key に閉じる。
+
+---
+
+## Infinite list cache 規約
+
+`useInfiniteQuery` を使うと cache は `InfiniteData<TWire>` (pages 構造)。この時の役割分担を明確化する。
+
+### cache = wire, view = select
+
+- **cache には wire そのまま** (mineIds は array、page ごとに独立) を置く
+- **UI が使う merged view (`TweetsData`) は `select` で毎 render 生成** する
+- 従来の `snapshotToCache(wire) → cache` の 1 回変換パターンは infinite では使わない — mutation が page ごとに書き換える都合上、cache は wire 形が扱いやすい
+
+```ts
+export type TweetsPagesCache = InfiniteData<TweetsListResponseWire, string | null>;
+
+function selectFlattened(data: TweetsPagesCache): TweetsData {
+  // 全 page を flatten、mineIds を Set に集約
+}
+
+export function useTweetsQuery() {
+  return useInfiniteQuery({ ...tweetsListOptions(), select: selectFlattened });
+}
+```
+
+### mutation は「対象 page のみ書き換え」
+
+InfiniteData を書き換える mutation は、変更のない page は同一参照を返す:
+
+```ts
+setQueryData<TweetsPagesCache>(listKey, (prev) => {
+  if (!prev) return prev;
+  const pages = prev.pages.map((page) => {
+    const inPage = page.tweets.some((t) => t.id === tweetId);
+    if (!inPage) return page;                 // ← 同一参照維持
+    return { ...page, likeState: { ... } };
+  });
+  return { ...prev, pages };
+});
+```
+
+**理由:** `select` は data reference が変わると再計算する。無関係 page を新オブジェクトにすると全 page flatten が毎回走ってしまう。
+
+### create の optimistic は pages[0] の先頭に挿入
+
+```ts
+const [firstPage, ...restPages] = prev.pages;
+const nextFirst = { ...firstPage, tweets: [optimistic, ...firstPage.tweets], ... };
+return { ...prev, pages: [nextFirst, ...restPages] };
+```
+
+- server 応答が返ったら pages[0].tweets の先頭 (直前の optimistic) を差し替える
+- cache が空 (初回 fetch 前) なら 1 page 分の空 shell を作って挿す
+
+### 適用対象
+
+現状 `tweets/client/queries.ts` のみ infinite。他 list (notifications 等) も無限スクロールが要る時に同じパターンでコピペする。
+
 ---
 
 ## Route loader 規約 (TanStack Router)
@@ -449,6 +525,7 @@ export const Route = createFileRoute("/profile/$handle")({
 - **loader 内でやってよい事**: rpc 経由の fetch、queryClient への prefetch、Zod parse、param 整形
 - **loader 内でやってはいけない事**: 副作用 (mutation) — mutation は component から呼ぶ
 - **route file から features/server 直呼び禁止** — FE ランタイムに BE のコードを持ち込まない
+- **infinite query の prefetch は `ensureInfiniteQueryData`** — 通常の `ensureQueryData` は型が合わない
 
 ### 縦線: `src/app/routes/*.tsx → screens/<slice>/loader.ts → features/<domain>/client`
 

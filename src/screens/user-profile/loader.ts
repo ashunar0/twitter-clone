@@ -11,7 +11,8 @@ import {
 export async function loadUserProfile(queryClient: QueryClient, handle: string) {
   const user = await queryClient.ensureQueryData(userByHandleOptions(handle));
   await Promise.all([
-    queryClient.ensureQueryData(userTweetsOptions(user.id)),
+    // tweets は infinite query。初期 page 1 枚だけ prefetch する。
+    queryClient.ensureInfiniteQueryData(userTweetsOptions(user.id)),
     queryClient.ensureQueryData(followCountsOptions(user.id)),
     queryClient.ensureQueryData(followMineOptions(user.id)),
   ]);

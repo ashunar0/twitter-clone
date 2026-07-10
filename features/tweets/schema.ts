@@ -28,11 +28,13 @@ export const likeStateSchema = z.object({
 });
 export type LikeStateWire = z.infer<typeof likeStateSchema>;
 
-// GET /api/tweets の response。tweets + authorId→summary の map + likeState。
+// GET /api/tweets の response (1 page)。
+// nextCursor が非 null なら「続きあり」、null なら最後の page。
 export const tweetsListResponseSchema = z.object({
   tweets: z.array(tweetWireSchema),
   authorSummaries: z.record(z.string(), authorSummarySchema),
   likeState: likeStateSchema,
+  nextCursor: z.string().nullable(),
 });
 export type TweetsListResponseWire = z.infer<typeof tweetsListResponseSchema>;
 

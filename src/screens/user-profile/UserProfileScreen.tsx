@@ -3,6 +3,7 @@ import { useUserTweetsQuery } from "@features/tweets/client/queries";
 import { useFollowCountsQuery } from "@features/follows/client/queries";
 import { TweetItem } from "@/widgets/tweet-item/TweetItem";
 import { FollowButton } from "@/widgets/follow-button/FollowButton";
+import { InfiniteScrollSentinel } from "@/shared/InfiniteScrollSentinel";
 
 // user profile 画面。loader で prefetch 済みの user / tweets / follow 情報を cache から読む。
 export function UserProfileScreen({ handle }: { handle: string }) {
@@ -48,20 +49,35 @@ export function UserProfileScreen({ handle }: { handle: string }) {
       {tweetsQuery.isLoading || !tweets ? (
         <div>Loading tweets…</div>
       ) : (
-        <ul className="flex flex-col gap-3">
-          {tweets.tweets.map((tweet) => (
-            <TweetItem
-              key={tweet.id}
-              tweet={tweet}
-              author={tweets.authorSummaries[tweet.authorId]}
-              likeCount={tweets.likeState.counts[tweet.id] ?? 0}
-              mine={tweets.likeState.mineIds.has(tweet.id)}
-            />
-          ))}
-          {tweets.tweets.length === 0 && (
-            <li className="text-neutral-500">まだ tweet がないのだ。</li>
-          )}
-        </ul>
+        <>
+          <ul className="flex flex-col gap-3">
+            {tweets.tweets.map((tweet) => (
+              <TweetItem
+                key={tweet.id}
+                tweet={tweet}
+                author={tweets.authorSummaries[tweet.authorId]}
+                likeCount={tweets.likeState.counts[tweet.id] ?? 0}
+                mine={tweets.likeState.mineIds.has(tweet.id)}
+              />
+            ))}
+            {tweets.tweets.length === 0 && (
+              <li className="text-neutral-500">まだ tweet がないのだ。</li>
+            )}
+          </ul>
+          <InfiniteScrollSentinel
+            onVisible={() => tweetsQuery.fetchNextPage()}
+            disabled={
+              !tweetsQuery.hasNextPage || tweetsQuery.isFetchingNextPage
+            }
+            label={
+              tweetsQuery.isFetchingNextPage
+                ? "Loading more…"
+                : tweetsQuery.hasNextPage
+                  ? ""
+                  : ""
+            }
+          />
+        </>
       )}
     </main>
   );
