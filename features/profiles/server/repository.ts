@@ -1,5 +1,5 @@
 import { eq, inArray } from "drizzle-orm";
-import type { DB } from "../../../server/lib/db";
+import type { DB } from "../../../server/infra/db";
 import { profiles, type ProfileRow } from "./table";
 import { users, type UserRow } from "../../users/server/table";
 

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { DbVariables } from "../../../server/lib/withDb";
+import type { DbVariables } from "../../../server/infra/withDb";
 import { getAuth } from "./auth";
 
 // features/users は "auth" ドメイン。better-auth の handler をここで request に流す。

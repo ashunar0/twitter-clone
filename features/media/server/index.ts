@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { ApiError } from "../../../server/lib/errors";
-import { withCurrentUser, type AuthVariables } from "../../../server/lib/currentUser";
-import type { StorageVariables } from "../../../server/lib/withStorage";
-import type { DbVariables } from "../../../server/lib/withDb";
+import { withCurrentUser, type AuthVariables } from "../../../server/infra/currentUser";
+import type { StorageVariables } from "../../../server/infra/withStorage";
+import type { DbVariables } from "../../../server/infra/withDb";
 import { mediaService } from "./service";
 
 // media sub-app。multipart form の file を受けて storage に put + media 行を作る。

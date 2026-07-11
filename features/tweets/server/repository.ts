@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
-import type { DB } from "../../../server/lib/db";
+import type { DB } from "../../../server/infra/db";
 import {
   mentions,
   tweets,

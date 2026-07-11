@@ -1,7 +1,7 @@
 import { createMiddleware } from "hono/factory";
 import { getAuth } from "../../features/users/server/auth";
 import type { User } from "../../features/users/type";
-import { ApiError } from "./errors";
+import { ApiError } from "../lib/errors";
 import type { DbVariables } from "./withDb";
 
 // better-auth の session (cookie 経由) を検証して current user を context に入れる middleware。

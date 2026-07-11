@@ -1,5 +1,5 @@
 import type { FollowCounts } from "../schema";
-import type { DB } from "../../../server/lib/db";
+import type { DB } from "../../../server/infra/db";
 import { followsRepository } from "./repository";
 
 export const followsService = {

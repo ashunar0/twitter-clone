@@ -7,8 +7,8 @@ import type {
   RetweetStateWire,
   TweetsListResponseWire,
 } from "../schema";
-import type { DB } from "../../../server/lib/db";
-import type { Storage } from "../../../server/lib/storage";
+import type { DB } from "../../../server/infra/db";
+import type { Storage } from "../../../server/infra/storage";
 import type { MediaSummary } from "../../media/schema";
 import { mediaService } from "../../media/server/service";
 import {

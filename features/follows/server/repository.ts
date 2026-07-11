@@ -1,5 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
-import type { DB } from "../../../server/lib/db";
+import type { DB } from "../../../server/infra/db";
 import { follows } from "./table";
 
 export const followsRepository = {

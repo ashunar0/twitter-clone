@@ -1,5 +1,5 @@
 import { eq, inArray } from "drizzle-orm";
-import type { DB } from "../../../server/lib/db";
+import type { DB } from "../../../server/infra/db";
 import { users, type UserRow } from "./table";
 
 // users は auth ドメインの内部 identity。public 表示側の feature は profiles を参照する。

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { ApiError } from "../../../server/lib/errors";
 import { zv } from "../../../server/lib/zv";
-import { withCurrentUser, type AuthVariables } from "../../../server/lib/currentUser";
+import { withCurrentUser, type AuthVariables } from "../../../server/infra/currentUser";
 import {
   handleAvailabilityQuerySchema,
   updateProfileWireSchema,

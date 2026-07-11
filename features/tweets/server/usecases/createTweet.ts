@@ -1,5 +1,5 @@
 import { ApiError } from "../../../../server/lib/errors";
-import type { DB } from "../../../../server/lib/db";
+import type { DB } from "../../../../server/infra/db";
 import type { CreateTweetWire } from "../../schema";
 import type { Tweet } from "../../type";
 import { tweetsService } from "../service";

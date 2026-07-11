@@ -1,5 +1,5 @@
 import { and, desc, eq, sql } from "drizzle-orm";
-import type { DB } from "../../../server/lib/db";
+import type { DB } from "../../../server/infra/db";
 import { notifications, type NewNotificationRow, type NotificationRow } from "./table";
 
 export type StoredNotification = NotificationRow;

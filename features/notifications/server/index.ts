@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { withCurrentUser, type AuthVariables } from "../../../server/lib/currentUser";
+import { withCurrentUser, type AuthVariables } from "../../../server/infra/currentUser";
 import { notificationsService } from "./service";
 
 const notifications = new Hono<{ Variables: AuthVariables }>()

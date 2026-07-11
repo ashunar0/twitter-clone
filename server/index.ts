@@ -1,9 +1,9 @@
 import { serve } from "@hono/node-server";
 import { buildRoutes } from "./app";
-import { createNodeDb } from "./lib/db-node";
-import { createNodeStorage } from "./lib/storage-node";
-import { withDb } from "./lib/withDb";
-import { withStorage } from "./lib/withStorage";
+import { createNodeDb } from "./infra/db-node";
+import { createNodeStorage } from "./infra/storage-node";
+import { withDb } from "./infra/withDb";
+import { withStorage } from "./infra/withStorage";
 
 export type { AppType } from "./app";
 

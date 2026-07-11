@@ -1,8 +1,8 @@
 import { buildRoutes } from "./app";
-import { createWorkerDb } from "./lib/db-worker";
-import { createWorkerStorage } from "./lib/storage-worker";
-import { withDb } from "./lib/withDb";
-import { withStorage } from "./lib/withStorage";
+import { createWorkerDb } from "./infra/db-worker";
+import { createWorkerStorage } from "./infra/storage-worker";
+import { withDb } from "./infra/withDb";
+import { withStorage } from "./infra/withStorage";
 
 // Cloudflare Workers 用 entry。
 // - env.DB (D1 binding) を per-request で drizzle instance に包む

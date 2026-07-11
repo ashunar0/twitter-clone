@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
-import type { DB } from "../../../server/lib/db";
+import type { DB } from "../../../server/infra/db";
 import { media, type MediaRow, type NewMediaRow } from "./table";
 
 export type StoredMedia = MediaRow;

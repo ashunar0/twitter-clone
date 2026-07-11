@@ -1,6 +1,6 @@
 import { ApiError } from "../../../server/lib/errors";
-import type { DB } from "../../../server/lib/db";
-import type { Storage } from "../../../server/lib/storage";
+import type { DB } from "../../../server/infra/db";
+import type { Storage } from "../../../server/infra/storage";
 import type { MediaWire } from "../schema";
 import { ACCEPTED_MIME_TYPES, MAX_MEDIA_BYTES } from "../schema";
 import { mediaRepository, type StoredMedia } from "./repository";

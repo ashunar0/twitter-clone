@@ -1,4 +1,4 @@
-import type { DB } from "../../../../server/lib/db";
+import type { DB } from "../../../../server/infra/db";
 import { tweetsRepository } from "../repository";
 
 // current user が elementaryId (元 tweet) について作った RT 行を削除する。存在しなくても noop (冪等)。

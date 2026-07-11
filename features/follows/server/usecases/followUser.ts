@@ -1,5 +1,5 @@
 import { ApiError } from "../../../../server/lib/errors";
-import type { DB } from "../../../../server/lib/db";
+import type { DB } from "../../../../server/infra/db";
 import { followsService } from "../service";
 import { notificationsService } from "../../../notifications/server/service";
 

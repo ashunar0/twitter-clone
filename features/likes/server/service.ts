@@ -1,4 +1,4 @@
-import type { DB } from "../../../server/lib/db";
+import type { DB } from "../../../server/infra/db";
 import { likesRepository } from "./repository";
 
 export const likesService = {

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zv } from "../../../server/lib/zv";
 import { createFollowWireSchema } from "../schema";
-import { withCurrentUser, type AuthVariables } from "../../../server/lib/currentUser";
+import { withCurrentUser, type AuthVariables } from "../../../server/infra/currentUser";
 import { followsService } from "./service";
 import { followUser } from "./usecases/followUser";
 

@@ -1,4 +1,4 @@
-import type { DB } from "../../../server/lib/db";
+import type { DB } from "../../../server/infra/db";
 import type { User } from "../type";
 import { usersRepository, type StoredUser } from "./repository";
 

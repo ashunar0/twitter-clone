@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zv } from "../../../server/lib/zv";
 import { createLikeWireSchema } from "../schema";
-import { withCurrentUser, type AuthVariables } from "../../../server/lib/currentUser";
+import { withCurrentUser, type AuthVariables } from "../../../server/infra/currentUser";
 import { likesService } from "./service";
 
 const likes = new Hono<{ Variables: AuthVariables }>()

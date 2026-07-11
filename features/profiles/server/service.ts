@@ -1,4 +1,4 @@
-import type { DB } from "../../../server/lib/db";
+import type { DB } from "../../../server/infra/db";
 import { ApiError } from "../../../server/lib/errors";
 import type { Profile } from "../type";
 import type {

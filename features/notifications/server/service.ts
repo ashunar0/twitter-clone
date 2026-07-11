@@ -1,5 +1,5 @@
 import type { ActorSummary, NotificationsListResponseWire } from "../schema";
-import type { DB } from "../../../server/lib/db";
+import type { DB } from "../../../server/infra/db";
 import {
   profilesRepository,
   type StoredProfileWithUser,
