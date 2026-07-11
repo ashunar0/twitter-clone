@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Heart, MessageCircle, Repeat2, Share, User } from "lucide-react";
 import type { Tweet } from "@features/tweets/type";
 import type { AuthorSummary } from "@features/tweets/schema";
+import type { ProfileSummary } from "@features/profiles/schema";
 import { Avatar } from "@/shared/ui/avatar";
 import { useToggleLikeMutation } from "@features/likes/client/mutations";
 import { useToggleRetweetMutation } from "@features/tweets/client/mutations";
@@ -11,6 +12,8 @@ import { useToggleRetweetMutation } from "@features/tweets/client/mutations";
 export type TweetItemProps = {
   tweet: Tweet;
   author: AuthorSummary | undefined;
+  // retweet 行の場合、行 author (誰が RT したか) を渡すと上に「◯◯ さんがリツイート」を出す。
+  retweetedBy?: AuthorSummary | ProfileSummary;
   replyCount?: number;
   retweetCount?: number;
   likeCount?: number;
@@ -21,6 +24,7 @@ export type TweetItemProps = {
 export function TweetItem({
   tweet,
   author,
+  retweetedBy,
   replyCount = 0,
   retweetCount = 0,
   likeCount = 0,
@@ -40,7 +44,14 @@ export function TweetItem({
   const avatarUrl = author?.avatarUrl ?? null;
 
   return (
-    <article className="flex gap-3 border-b border-border px-4 py-3">
+    <article className="flex flex-col border-b border-border px-4 py-3">
+      {retweetedBy ? (
+        <div className="mb-1 ml-8 flex items-center gap-2 text-xs font-medium text-fg-muted">
+          <Repeat2 className="size-3" />
+          <span>{retweetedBy.name} さんがリツイート</span>
+        </div>
+      ) : null}
+      <div className="flex gap-3">
       <Avatar.Root className="size-10 shrink-0">
         {/* src が無い時に <img> を描くと alt が視覚露出するので、URL がある時だけ Image を出す */}
         {avatarUrl ? (
@@ -105,6 +116,7 @@ export function TweetItem({
             hoverBg="group-hover:bg-brand-blue/10"
           />
         </footer>
+      </div>
       </div>
     </article>
   );

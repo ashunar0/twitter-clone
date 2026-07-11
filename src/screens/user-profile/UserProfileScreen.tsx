@@ -82,11 +82,15 @@ export function UserProfileScreen({ handle }: { handle: string }) {
               const displayTweet = original?.tweet ?? tweet;
               const displayAuthor =
                 original?.author ?? tweets.authorSummaries[tweet.authorId];
+              const retweetedBy = isRt
+                ? tweets.authorSummaries[tweet.authorId]
+                : undefined;
               return (
                 <TweetItem
                   key={tweet.id}
                   tweet={displayTweet}
                   author={displayAuthor}
+                  retweetedBy={retweetedBy}
                   likeCount={tweets.likeState.counts[displayTweet.id] ?? 0}
                   retweetCount={tweets.retweetState.counts[displayTweet.id] ?? 0}
                   mineLike={tweets.likeState.mineIds.has(displayTweet.id)}

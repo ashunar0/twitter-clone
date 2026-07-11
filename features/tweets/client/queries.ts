@@ -42,8 +42,18 @@ function selectFlattened(data: TweetsPagesCache): TweetsData {
     Object.assign(originalTweets, page.originalTweets);
     Object.assign(mediaSummaries, page.mediaSummaries);
   }
+  // 表示 id (= 元 tweet の id、RT 行なら retweetOfId、通常 tweet なら id) で dedupe する。
+  // timeline は createdAt DESC で流れるので、上位に出た RT / 元 tweet を残し、下位の重複を落とす (Twitter/X 準拠)。
+  const seenDisplayIds = new Set<string>();
+  const dedupedTweets: Tweet[] = [];
+  for (const t of tweets) {
+    const displayId = t.retweetOfId ?? t.id;
+    if (seenDisplayIds.has(displayId)) continue;
+    seenDisplayIds.add(displayId);
+    dedupedTweets.push(t);
+  }
   return {
-    tweets,
+    tweets: dedupedTweets,
     authorSummaries,
     likeState: { counts: likeCounts, mineIds: likeMineIds },
     retweetState: { counts: retweetCounts, mineIds: retweetMineIds },

@@ -53,10 +53,8 @@ export function useToggleRetweetMutation() {
     onError: (_e, _vars, ctx) => {
       if (ctx?.snapshot) queryClient.setQueryData(listKey, ctx.snapshot);
     },
-    onSuccess: () => {
-      // RT 行自体 (tweets 配列への挿入 / 削除) は refetch でサーバ側と揃える。
-      queryClient.invalidateQueries({ queryKey: listKey });
-    },
+    // 意図的に onSuccess で invalidate しない (X 準拠)。押した瞬間は optimistic (button 緑 + count +1) だけ、
+    // RT 行が上に出てくるのは次の refetch (手動 refresh / 他 mutation の invalidation) タイミング。
   });
 }
 

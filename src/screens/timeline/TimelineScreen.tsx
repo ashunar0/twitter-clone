@@ -26,7 +26,7 @@ export function TimelineScreen() {
         <>
           <ul className="flex flex-col">
             {data.tweets.map((tweet) => {
-              // retweet 行なら元 tweet を表示、行 author (retweeter) は今表示しない (TweetItem 拡張で対応)。
+              // retweet 行なら元 tweet を表示、行 author (retweeter) は header 表示に使う。
               const isRt = tweet.retweetOfId != null;
               const original = isRt
                 ? data.originalTweets[tweet.retweetOfId!]
@@ -34,12 +34,16 @@ export function TimelineScreen() {
               const displayTweet = original?.tweet ?? tweet;
               const displayAuthor =
                 original?.author ?? data.authorSummaries[tweet.authorId];
+              const retweetedBy = isRt
+                ? data.authorSummaries[tweet.authorId]
+                : undefined;
               const id = displayTweet.id;
               return (
                 <li key={tweet.id}>
                   <TweetItem
                     tweet={displayTweet}
                     author={displayAuthor}
+                    retweetedBy={retweetedBy}
                     likeCount={data.likeState.counts[id] ?? 0}
                     retweetCount={data.retweetState.counts[id] ?? 0}
                     mineLike={data.likeState.mineIds.has(id)}
