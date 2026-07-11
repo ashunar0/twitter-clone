@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
@@ -46,7 +47,7 @@ export function SignInScreen() {
     <div className="flex w-full max-w-sm flex-col items-center gap-8">
       <div className="flex flex-col items-center gap-2">
         <Bird className="size-10" aria-hidden />
-        <h1 className="text-2xl font-bold">Bird にログイン</h1>
+        <h1 className="text-2xl font-bold">Twitter にログイン</h1>
       </div>
       <form
         onSubmit={onSubmit}
@@ -93,6 +94,12 @@ export function SignInScreen() {
           ログイン
         </Button>
       </form>
+      <p className="text-sm text-fg-muted">
+        アカウントをお持ちでないなら{" "}
+        <Link to="/signup" className="font-medium text-blue-600 underline">
+          新規登録
+        </Link>
+      </p>
     </div>
   );
 }

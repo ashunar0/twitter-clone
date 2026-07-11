@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
@@ -104,6 +105,12 @@ export function SignUpScreen() {
           アカウント作成
         </Button>
       </form>
+      <p className="text-sm text-fg-muted">
+        アカウントをお持ちなら{" "}
+        <Link to="/signin" className="font-medium text-blue-600 underline">
+          ログイン
+        </Link>
+      </p>
     </div>
   );
 }
