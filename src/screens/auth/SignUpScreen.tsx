@@ -1,114 +1,109 @@
-import { useState, type FormEvent } from "react";
-import { Link } from "@tanstack/react-router";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
+import { Bird } from "lucide-react";
 import { signUp } from "@features/users/client/auth-client";
-import {
-  emailSchema,
-  passwordSchema,
-  signUpWireSchema,
-} from "@features/users/schema";
+import { signUpWireSchema, type SignUpWire } from "@features/users/schema";
+import { Field } from "@/shared/ui/field";
+import { PasswordInput } from "@/shared/ui/password-input";
 import { Button } from "@/shared/ui/button";
+import { toaster } from "@/shared/ui/toast";
 
-// signup 画面。better-auth の signUp.email() を叩き、成功で session cookie が発行される。
-// signup 成功後は timeline (/) に redirect、cache を全消しして初期 fetch を走らせる。
+// signup 画面。RHF + zodResolver で client-side validate、better-auth の signUp.email() で session cookie を発行。
+// 成功時は queryClient.clear() → / への full reload で cookie 反映と router state を同期する。
 export function SignUpScreen() {
   const queryClient = useQueryClient();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [pending, setPending] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<SignUpWire>({
+    resolver: zodResolver(signUpWireSchema),
+    defaultValues: { name: "", email: "", password: "" },
+  });
 
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    const parsed = signUpWireSchema.safeParse({ email, password, name });
-    if (!parsed.success) {
-      const local: Record<string, string> = {};
-      for (const issue of parsed.error.issues) {
-        local[issue.path[0] as string] = issue.message;
-      }
-      setErrors(local);
-      return;
-    }
-    setErrors({});
-    setPending(true);
+  // submit handler。better-auth 呼び出し → 成功で toast + full reload、失敗で toast だけ。
+  const onSubmit = handleSubmit(async (values) => {
     const result = await signUp.email({
-      email: parsed.data.email,
-      password: parsed.data.password,
-      name: parsed.data.name,
+      email: values.email,
+      password: values.password,
+      name: values.name,
     });
-    setPending(false);
     if (result.error) {
-      setErrors({ _: result.error.message ?? "登録に失敗した" });
+      toaster.create({
+        type: "error",
+        title: "登録に失敗した",
+        description: result.error.message ?? undefined,
+      });
       return;
     }
-    // session が確定したので stale cache を全消しして root から再 fetch させる。
-    // TanStack Router navigate は session cookie 反映と race することがあるので full reload。
+    toaster.create({ type: "success", title: "登録しました" });
     queryClient.clear();
     window.location.href = "/";
-  };
+  });
 
   return (
-    <main className="mx-auto max-w-md p-6">
-      <h1 className="mb-6 text-2xl font-bold">Sign up</h1>
-      <form onSubmit={onSubmit} className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-neutral-700">Name</span>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            disabled={pending}
-            className="rounded border border-neutral-300 p-2"
+    <div className="flex w-full max-w-sm flex-col items-center gap-8">
+      <div className="flex flex-col items-center gap-2">
+        <Bird className="size-10" aria-hidden />
+        <h1 className="text-2xl font-bold">Twitter に登録</h1>
+      </div>
+      <form
+        onSubmit={onSubmit}
+        className="flex w-full flex-col gap-6"
+        noValidate
+      >
+        <Field.Root invalid={!!errors.name}>
+          <Field.Label>名前</Field.Label>
+          <Field.Input
+            autoComplete="name"
+            disabled={isSubmitting}
+            {...register("name")}
           />
           {errors.name ? (
-            <span className="text-xs text-red-600">{errors.name}</span>
+            <Field.ErrorText>{errors.name.message}</Field.ErrorText>
           ) : null}
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-neutral-700">Email</span>
-          <input
+        </Field.Root>
+        <Field.Root invalid={!!errors.email}>
+          <Field.Label>メールアドレス</Field.Label>
+          <Field.Input
             type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={pending}
             autoComplete="email"
-            className="rounded border border-neutral-300 p-2"
+            placeholder="you@example.com"
+            disabled={isSubmitting}
+            {...register("email")}
           />
           {errors.email ? (
-            <span className="text-xs text-red-600">{errors.email}</span>
+            <Field.ErrorText>{errors.email.message}</Field.ErrorText>
           ) : null}
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-neutral-700">Password</span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={pending}
-            autoComplete="new-password"
-            className="rounded border border-neutral-300 p-2"
-          />
+        </Field.Root>
+        <PasswordInput.Root>
+          <PasswordInput.Label>パスワード</PasswordInput.Label>
+          <PasswordInput.Control>
+            <PasswordInput.Input
+              placeholder="••••••••"
+              autoComplete="new-password"
+              disabled={isSubmitting}
+              aria-invalid={!!errors.password}
+              {...register("password")}
+            />
+            <PasswordInput.VisibilityTrigger />
+          </PasswordInput.Control>
           {errors.password ? (
-            <span className="text-xs text-red-600">{errors.password}</span>
+            <span className="text-xs text-red-600 dark:text-red-400">
+              {errors.password.message}
+            </span>
           ) : null}
-        </label>
-        {errors._ ? (
-          <div className="text-sm text-red-600">{errors._}</div>
-        ) : null}
-        <Button type="submit" disabled={pending} loading={pending}>
-          Create account
+        </PasswordInput.Root>
+        <Button
+          type="submit"
+          className="font-bold"
+          disabled={isSubmitting}
+          loading={isSubmitting}
+        >
+          アカウント作成
         </Button>
       </form>
-      <div className="mt-4 text-sm text-neutral-600">
-        すでに登録済なら{" "}
-        <Link to="/signin" className="underline">
-          Sign in
-        </Link>
-      </div>
-    </main>
+    </div>
   );
-
-  // schema import 未使用の警告を抑える (client-side pre-check 拡張時に使う想定)。
-  void emailSchema;
-  void passwordSchema;
 }
