@@ -1,6 +1,7 @@
 import { useTweetsQuery } from "@features/tweets/client/queries";
 import { TweetItem } from "@/widgets/tweet-item/TweetItem";
 import { InfiniteScrollSentinel } from "@/shared/InfiniteScrollSentinel";
+import { TweetComposer } from "./TweetComposer";
 
 // public timeline 画面。read model (tweets + authorSummaries + like/retweet state) を表示。
 // retweet header / media 表示は TweetItem 再拡張で戻す予定、今は body / counts の最小配線。
@@ -16,6 +17,7 @@ export function TimelineScreen() {
 
   return (
     <main className="mx-auto min-h-svh w-full max-w-xl border-x border-border">
+      <TweetComposer />
       {isLoading ? (
         <div className="p-6 text-sm text-fg-muted">Loading…</div>
       ) : error ? (
