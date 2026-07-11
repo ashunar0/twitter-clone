@@ -45,6 +45,29 @@ export const profilesService = {
     const row = await profilesRepository.findByHandle(db, handle);
     return row === null;
   },
+  // signup onboarding 用。空きなら通す、埋まってれば conflict を throw。auth.ts の before hook から呼ぶ。
+  async ensureHandleAvailableForOnboard(db: DB, handle: string): Promise<void> {
+    const available = await this.isHandleAvailable(db, handle);
+    if (!available) {
+      throw ApiError.conflict("そのハンドルはすでに使われています", {
+        handle: "already taken",
+      });
+    }
+  },
+  // signup 直後の profile 作成 (userId は better-auth が生成済)。UNIQUE 衝突は conflict throw。
+  // auth.ts の after hook から呼ぶ、失敗時の users row 巻き戻しは呼び出し側 (auth.ts) が担う。
+  async onboardWithHandle(db: DB, userId: string, handle: string): Promise<void> {
+    try {
+      await profilesRepository.insert(db, { userId, handle });
+    } catch (err) {
+      if (isUniqueConstraintError(err)) {
+        throw ApiError.conflict("そのハンドルはすでに使われています", {
+          handle: "already taken",
+        });
+      }
+      throw err;
+    }
+  },
   // 複数 userId → summary map。cross-feature enrichment の対外 API (tweets 等が使う)。
   async summariesByUserIds(
     db: DB,

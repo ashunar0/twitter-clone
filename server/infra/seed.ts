@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
 import { createNodeDb } from "./db-node";
-import { getAuth } from "../../features/users/server/auth";
+import { getAuth } from "./auth";
+import { onboardingHooks } from "./authOnboarding";
 import { profiles } from "../../features/profiles/server/table";
 import { tweets } from "../../features/tweets/server/table";
 import {
@@ -18,7 +18,7 @@ import { media } from "../../features/media/server/table";
 // getAuth(db).api.signUpEmail を internal 呼び出しする。冪等ではなく、毎回 wipe → 再構築する。
 async function seed() {
   const db = createNodeDb();
-  const auth = getAuth(db);
+  const auth = getAuth(db, { onboarding: onboardingHooks });
 
   // wipe: 依存順に消す (child → parent)。
   await db.delete(notifications);
@@ -32,31 +32,23 @@ async function seed() {
   await db.delete(verifications);
   await db.delete(users);
 
-  // signup: better-auth の internal API 経由。databaseHooks で profiles も同時に auto-create される。
+  // signup: better-auth の internal API 経由。databaseHooks (auth.ts) が handle も一緒に profiles に書く。
   const asahi = await auth.api.signUpEmail({
     body: {
       email: "asahi@example.com",
       password: "password1",
       name: "Asahi",
-    },
+      handle: "asahi",
+    } as Parameters<typeof auth.api.signUpEmail>[0]["body"] & { handle: string },
   });
   const zundamon = await auth.api.signUpEmail({
     body: {
       email: "zundamon@example.com",
       password: "password1",
       name: "ずんだもん",
-    },
+      handle: "zundamon",
+    } as Parameters<typeof auth.api.signUpEmail>[0]["body"] & { handle: string },
   });
-
-  // default handle (random suffix) を分かりやすい値に固定。
-  await db
-    .update(profiles)
-    .set({ handle: "asahi" })
-    .where(eq(profiles.userId, asahi.user.id));
-  await db
-    .update(profiles)
-    .set({ handle: "zundamon" })
-    .where(eq(profiles.userId, zundamon.user.id));
 
   // tweets: 起点となる 3 件 + cursor 検証用ダミー 40 件。
   await db.insert(tweets).values([
