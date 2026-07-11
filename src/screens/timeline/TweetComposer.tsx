@@ -114,7 +114,10 @@ export function TweetComposer({
     >
       <Avatar.Root className="size-10 shrink-0">
         {currentProfile?.avatarUrl ? (
-          <Avatar.Image src={currentProfile.avatarUrl} alt={currentProfile.name} />
+          <Avatar.Image
+            src={currentProfile.avatarUrl}
+            alt={currentProfile.name}
+          />
         ) : null}
         <Avatar.Fallback>
           <User className="size-5 text-fg-subtle" aria-hidden />
@@ -180,11 +183,11 @@ export function TweetComposer({
             </span>
             <Button
               type="submit"
-              className="rounded-full font-bold"
+              className="rounded-full bg-brand-blue font-bold text-white hover:bg-brand-blue-dark"
               disabled={disabled}
               loading={createTweet.isPending}
             >
-              {submitLabel ?? "ポスト"}
+              {submitLabel ?? "ツイートする"}
             </Button>
           </div>
         </div>
