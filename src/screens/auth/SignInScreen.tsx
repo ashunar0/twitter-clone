@@ -1,90 +1,32 @@
-import { useState, type FormEvent } from "react";
-import { Link } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
-import { signIn } from "@features/users/client/auth-client";
-import { signInWireSchema } from "@features/users/schema";
+import { Bird } from "lucide-react";
+import { Field } from "@/shared/ui/field";
+import { PasswordInput } from "@/shared/ui/password-input";
 import { Button } from "@/shared/ui/button";
 
-// signin 画面。better-auth の signIn.email() で cookie session を確立、成功で timeline へ。
+// signin 画面。ロジックは未実装、UI 骨組みだけ。
 export function SignInScreen() {
-  const queryClient = useQueryClient();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [pending, setPending] = useState(false);
-
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    const parsed = signInWireSchema.safeParse({ email, password });
-    if (!parsed.success) {
-      const local: Record<string, string> = {};
-      for (const issue of parsed.error.issues) {
-        local[issue.path[0] as string] = issue.message;
-      }
-      setErrors(local);
-      return;
-    }
-    setErrors({});
-    setPending(true);
-    const result = await signIn.email({
-      email: parsed.data.email,
-      password: parsed.data.password,
-    });
-    setPending(false);
-    if (result.error) {
-      setErrors({ _: result.error.message ?? "ログインに失敗した" });
-      return;
-    }
-    queryClient.clear();
-    // session cookie 確立を確実に反映させるため full reload で / へ (TanStack Router navigate が race する)。
-    window.location.href = "/";
-  };
-
   return (
-    <main className="mx-auto max-w-md p-6">
-      <h1 className="mb-6 text-2xl font-bold">Sign in</h1>
-      <form onSubmit={onSubmit} className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-neutral-700">Email</span>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={pending}
-            autoComplete="email"
-            className="rounded border border-neutral-300 p-2"
-          />
-          {errors.email ? (
-            <span className="text-xs text-red-600">{errors.email}</span>
-          ) : null}
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-neutral-700">Password</span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={pending}
-            autoComplete="current-password"
-            className="rounded border border-neutral-300 p-2"
-          />
-          {errors.password ? (
-            <span className="text-xs text-red-600">{errors.password}</span>
-          ) : null}
-        </label>
-        {errors._ ? (
-          <div className="text-sm text-red-600">{errors._}</div>
-        ) : null}
-        <Button type="submit" disabled={pending} loading={pending}>
-          Sign in
+    <div className="flex w-full max-w-sm flex-col items-center gap-8">
+      <div className="flex flex-col items-center gap-2">
+        <Bird className="size-10" aria-hidden />
+        <h1 className="text-2xl font-bold">Bird にログイン</h1>
+      </div>
+      <form className="flex w-full flex-col gap-6">
+        <Field.Root>
+          <Field.Label>メールアドレス</Field.Label>
+          <Field.Input type="email" placeholder="you@example.com" />
+        </Field.Root>
+        <PasswordInput.Root>
+          <PasswordInput.Label>パスワード</PasswordInput.Label>
+          <PasswordInput.Control>
+            <PasswordInput.Input placeholder="••••••••" />
+            <PasswordInput.VisibilityTrigger />
+          </PasswordInput.Control>
+        </PasswordInput.Root>
+        <Button type="submit" className="font-bold">
+          ログイン
         </Button>
       </form>
-      <div className="mt-4 text-sm text-neutral-600">
-        アカウントがないなら{" "}
-        <Link to="/signup" className="underline">
-          Sign up
-        </Link>
-      </div>
-    </main>
+    </div>
   );
 }
