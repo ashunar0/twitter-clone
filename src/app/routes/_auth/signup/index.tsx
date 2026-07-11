@@ -1,6 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { SignUpScreen } from "@/screens/auth/SignUpScreen";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+// /signup 単体は step1 (/signup/email) に飛ばす。wizard entry point。
 export const Route = createFileRoute("/_auth/signup/")({
-  component: SignUpScreen,
+  beforeLoad: () => {
+    throw redirect({ to: "/signup/email" });
+  },
 });

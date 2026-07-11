@@ -37,3 +37,13 @@ export const updateProfileWireSchema = z.object({
   handle: handleSchema,
 });
 export type UpdateProfileWire = z.infer<typeof updateProfileWireSchema>;
+
+// GET /api/profiles/handle-availability?handle=xxx — signup wizard 用の handle 空き check。
+// 認証不要 (公開 endpoint)。format 不正は 400、空いてれば {available:true}、埋まってれば {available:false}。
+export const handleAvailabilityQuerySchema = z.object({
+  handle: handleSchema,
+});
+export const handleAvailabilityWireSchema = z.object({
+  available: z.boolean(),
+});
+export type HandleAvailabilityWire = z.infer<typeof handleAvailabilityWireSchema>;

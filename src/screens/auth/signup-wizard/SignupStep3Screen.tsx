@@ -1,44 +1,60 @@
-import { Link } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { Bird } from "lucide-react";
 import { signUp } from "@features/users/client/auth-client";
-import { signUpWireSchema, type SignUpWire } from "@features/users/schema";
+import { signUpStep3Schema, type SignUpStep3 } from "@features/users/schema";
 import { Field } from "@/shared/ui/field";
 import { PasswordInput } from "@/shared/ui/password-input";
 import { Button } from "@/shared/ui/button";
 import { toaster } from "@/shared/ui/toast";
+import { useSignupWizard } from "./context";
 
-// signup 画面。RHF + zodResolver で client-side validate、better-auth の signUp.email() で session cookie を発行。
-// 成功時は queryClient.clear() → / への full reload で cookie 反映と router state を同期する。
-export function SignUpScreen() {
+// signup wizard step3: password 入力 + 最終 submit。ここまでで context に email/name/handle が揃っている。
+// 成功で toast + queryClient.clear() → / への full reload。失敗は toast のみ (画面留まる)。
+export function SignupStep3Screen() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { state, reset } = useSignupWizard();
+
+  // 前 step 未入力の直リンク救済。email/name/handle いずれか欠けたら step1 に戻す。
+  useEffect(() => {
+    if (!state.email || !state.name || !state.handle) {
+      navigate({ to: "/signup/email", replace: true });
+    }
+  }, [state.email, state.name, state.handle, navigate]);
+
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<SignUpWire>({
-    resolver: zodResolver(signUpWireSchema),
-    defaultValues: { name: "", email: "", password: "" },
+  } = useForm<SignUpStep3>({
+    resolver: zodResolver(signUpStep3Schema),
+    defaultValues: { password: "" },
   });
 
-  // submit handler。better-auth 呼び出し → 成功で toast + full reload、失敗で toast だけ。
   const onSubmit = handleSubmit(async (values) => {
+    if (!state.email || !state.name || !state.handle) return;
+    // better-auth の signUp.email() に additionalFields (handle) を追加で流す。
+    // client 型では未宣言なので cast、server 側 additionalFields 宣言と一致していれば通る。
     const result = await signUp.email({
-      email: values.email,
+      email: state.email,
       password: values.password,
-      name: values.name,
-    });
+      name: state.name,
+      handle: state.handle,
+    } as Parameters<typeof signUp.email>[0] & { handle: string });
     if (result.error) {
       toaster.create({
         type: "error",
-        title: "登録に失敗した",
+        title: "登録に失敗しました",
         description: result.error.message ?? undefined,
       });
       return;
     }
     toaster.create({ type: "success", title: "登録しました" });
+    reset();
     queryClient.clear();
     window.location.href = "/";
   });
@@ -47,37 +63,14 @@ export function SignUpScreen() {
     <div className="flex w-full max-w-sm flex-col items-center gap-8">
       <div className="flex flex-col items-center gap-2">
         <Bird className="size-10" aria-hidden />
-        <h1 className="text-2xl font-bold">Twitter に登録</h1>
+        <h1 className="text-2xl font-bold">パスワードを決める</h1>
+        <p className="text-sm text-fg-muted">Step 3 / 3</p>
       </div>
       <form
         onSubmit={onSubmit}
         className="flex w-full flex-col gap-6"
         noValidate
       >
-        <Field.Root invalid={!!errors.name}>
-          <Field.Label>名前</Field.Label>
-          <Field.Input
-            autoComplete="name"
-            disabled={isSubmitting}
-            {...register("name")}
-          />
-          {errors.name ? (
-            <Field.ErrorText>{errors.name.message}</Field.ErrorText>
-          ) : null}
-        </Field.Root>
-        <Field.Root invalid={!!errors.email}>
-          <Field.Label>メールアドレス</Field.Label>
-          <Field.Input
-            type="email"
-            autoComplete="email"
-            placeholder="you@example.com"
-            disabled={isSubmitting}
-            {...register("email")}
-          />
-          {errors.email ? (
-            <Field.ErrorText>{errors.email.message}</Field.ErrorText>
-          ) : null}
-        </Field.Root>
         <PasswordInput.Root>
           <PasswordInput.Label>パスワード</PasswordInput.Label>
           <PasswordInput.Control>

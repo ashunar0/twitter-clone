@@ -21,8 +21,9 @@ function RootLayout() {
   const session = useSession();
   const location = useLocation();
   const navigate = useNavigate();
+  // signup は wizard で複数 subpath (/signup/email, /signup/handle, ...) に広がるので prefix 一致で扱う。
   const publicPath =
-    location.pathname === "/signin" || location.pathname === "/signup";
+    location.pathname === "/signin" || location.pathname.startsWith("/signup");
 
   useEffect(() => {
     if (session.isPending) return;

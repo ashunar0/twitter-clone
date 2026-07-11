@@ -2,10 +2,21 @@ import { Hono } from "hono";
 import { ApiError } from "../../../server/lib/errors";
 import { zv } from "../../../server/lib/zv";
 import { withCurrentUser, type AuthVariables } from "../../../server/lib/currentUser";
-import { updateProfileWireSchema } from "../schema";
+import {
+  handleAvailabilityQuerySchema,
+  updateProfileWireSchema,
+} from "../schema";
 import { profilesService } from "./service";
 
 const profiles = new Hono<{ Variables: AuthVariables }>()
+  // GET /api/profiles/handle-availability?handle=xxx — signup wizard 用、認証不要。
+  // format NG は zv が 400 で弾き、DB lookup で {available:true|false} を返す。
+  .get("/handle-availability", zv("query", handleAvailabilityQuerySchema), async (c) => {
+    const { handle } = c.req.valid("query");
+    const db = c.get("db");
+    const available = await profilesService.isHandleAvailable(db, handle);
+    return c.json({ available });
+  })
   .use("*", withCurrentUser)
   // GET /api/profiles/me — current user の profile を返す。
   .get("/me", async (c) => {

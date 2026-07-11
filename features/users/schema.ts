@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { handleSchema, nameSchema } from "../profiles/schema";
 
 // features/users は auth ドメイン。
 // public 表示用の identity (handle 等) は features/profiles/schema.ts に隔離。
@@ -20,12 +21,25 @@ export const passwordSchema = z
   .string()
   .min(8, "パスワードは 8 文字以上にしてください");
 
+// signup は wizard で 3 step (email+name → handle → password) に分割するが、最終 submit ではこの単一 schema で validate する。
+// handle 制約は features/profiles の handleSchema を再利用 (単一の source of truth)。
 export const signUpWireSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
-  name: z.string().trim().min(1, "名前を入力してください").max(50),
+  name: nameSchema,
+  handle: handleSchema,
 });
 export type SignUpWire = z.infer<typeof signUpWireSchema>;
+
+// wizard step ごとの部分 schema。各画面の field-level validate に使う。
+export const signUpStep1Schema = signUpWireSchema.pick({ email: true, name: true });
+export type SignUpStep1 = z.infer<typeof signUpStep1Schema>;
+
+export const signUpStep2Schema = signUpWireSchema.pick({ handle: true });
+export type SignUpStep2 = z.infer<typeof signUpStep2Schema>;
+
+export const signUpStep3Schema = signUpWireSchema.pick({ password: true });
+export type SignUpStep3 = z.infer<typeof signUpStep3Schema>;
 
 export const signInWireSchema = z.object({
   email: emailSchema,

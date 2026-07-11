@@ -1,6 +1,10 @@
 import { rpcClient } from "@/lib/hono/client";
 import { throwIfNotOk } from "@/lib/hono/apiError";
-import type { ProfileWire, UpdateProfileWire } from "../schema";
+import type {
+  HandleAvailabilityWire,
+  ProfileWire,
+  UpdateProfileWire,
+} from "../schema";
 
 export const profilesRpc = {
   // GET /api/profiles/me — current user の profile を取得。
@@ -22,5 +26,13 @@ export const profilesRpc = {
     const res = await rpcClient.api.profiles.me.$put({ json: input });
     await throwIfNotOk(res);
     return (await res.json()) as ProfileWire;
+  },
+  // GET /api/profiles/handle-availability?handle=xxx — signup wizard 用、認証不要。
+  async handleAvailability(handle: string): Promise<HandleAvailabilityWire> {
+    const res = await rpcClient.api.profiles["handle-availability"].$get({
+      query: { handle },
+    });
+    await throwIfNotOk(res);
+    return (await res.json()) as HandleAvailabilityWire;
   },
 };

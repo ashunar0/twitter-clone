@@ -40,6 +40,11 @@ export const profilesService = {
     const row = await profilesRepository.findByHandle(db, handle);
     return row ? toWire(row) : null;
   },
+  // handle が空いてるかを DB lookup で判定する。availability check endpoint 用の pure read。
+  async isHandleAvailable(db: DB, handle: string): Promise<boolean> {
+    const row = await profilesRepository.findByHandle(db, handle);
+    return row === null;
+  },
   // 複数 userId → summary map。cross-feature enrichment の対外 API (tweets 等が使う)。
   async summariesByUserIds(
     db: DB,

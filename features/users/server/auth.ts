@@ -1,5 +1,7 @@
 import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { eq } from "drizzle-orm";
 import type { DB } from "../../../server/lib/db";
 import { profiles } from "../../profiles/server/table";
 import {
@@ -41,18 +43,41 @@ export function getAuth(db: DB, opts?: { secret?: string; baseURL?: string }) {
       // demo なので verification をスキップ (signup 即使える)。
       requireEmailVerification: false,
     },
+    // signup 時に client から handle を受け取る。better-auth の additionalFields は
+    // users テーブルに列を足すことを前提とするが、うちは handle を profiles 側に隔離したいので使わない。
+    // 代わりに databaseHooks の ctx.body から handle を直接読んで profiles に書き込む。
     databaseHooks: {
       user: {
         create: {
-          after: async (user) => {
-            // signup 直後に profiles を default handle 付きで自動作成する。
-            // "features/users は features/profiles の repository を read/write してよい"
-            // …は規約上厳密には NG だが、auth ドメインが profile 1 個を生む onboarding step
-            // として例外的に許容 (規約 doc に記載)。
-            await db
-              .insert(profiles)
-              .values({ userId: user.id, handle: defaultHandleFor(user.email) })
-              .onConflictDoNothing();
+          // signup 前に handle format + 重複を潰す。最終防衛線は profiles.handle の UNIQUE 制約。
+          // NOTE: "features/users は profiles を read してよい" は規約上厳密には NG だが、
+          // onboarding step として例外的に許容 (規約 doc 記載)。
+          before: async (user, ctx) => {
+            const handle = readHandle(ctx);
+            if (!handle) {
+              throw new APIError("BAD_REQUEST", { message: "handle is required" });
+            }
+            const existing = await db
+              .select({ userId: profiles.userId })
+              .from(profiles)
+              .where(eq(profiles.handle, handle))
+              .get();
+            if (existing) {
+              throw new APIError("BAD_REQUEST", { message: "handle is already taken" });
+            }
+            return { data: user };
+          },
+          // signup 直後に profiles を入力 handle で作成する。UNIQUE 衝突 (TOCTOU) は catch して user を巻き戻す。
+          after: async (user, ctx) => {
+            const handle = readHandle(ctx);
+            if (!handle) return;
+            try {
+              await db.insert(profiles).values({ userId: user.id, handle });
+            } catch {
+              // 直前 before check と UNIQUE 制約の間で race したら、既作成の users row を消してエラー。
+              await db.delete(users).where(eq(users.id, user.id));
+              throw new APIError("BAD_REQUEST", { message: "handle is already taken" });
+            }
           },
         },
       },
@@ -60,15 +85,13 @@ export function getAuth(db: DB, opts?: { secret?: string; baseURL?: string }) {
   });
 }
 
-// email prefix + 数字 suffix で default handle を作る (3〜15 文字、a-z/0-9/_ のみ)。
-// signup 後に本人が /u/@me から edit すること想定。
-function defaultHandleFor(email: string): string {
-  const prefix =
-    (email.split("@")[0] ?? "user").replace(/[^a-zA-Z0-9_]/g, "").slice(0, 10) || "user";
-  const suffix = Math.floor(Math.random() * 100000)
-    .toString()
-    .padStart(5, "0");
-  return `${prefix}${suffix}`.slice(0, 15);
+// databaseHooks ctx.body から handle を安全に取り出す。format は handleSchema と揃えた最小 check のみ。
+function readHandle(ctx: unknown): string | null {
+  const body = (ctx as { body?: unknown } | undefined)?.body;
+  const handle = (body as { handle?: unknown } | undefined)?.handle;
+  if (typeof handle !== "string") return null;
+  if (!/^[a-zA-Z0-9_]{3,15}$/.test(handle)) return null;
+  return handle;
 }
 
 // better-auth の型を re-export (Session 型を middleware から使う)。
