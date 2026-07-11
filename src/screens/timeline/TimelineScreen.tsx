@@ -38,14 +38,8 @@ export function TimelineScreen() {
               return (
                 <li key={tweet.id}>
                   <TweetItem
-                    id={id}
-                    author={{
-                      name: displayAuthor?.name ?? "",
-                      handle: displayAuthor?.handle ?? "",
-                      avatarUrl: displayAuthor?.avatarUrl ?? null,
-                    }}
-                    body={displayTweet.body}
-                    createdAt={displayTweet.createdAt}
+                    tweet={displayTweet}
+                    author={displayAuthor}
                     likeCount={data.likeState.counts[id] ?? 0}
                     retweetCount={data.retweetState.counts[id] ?? 0}
                     mineLike={data.likeState.mineIds.has(id)}

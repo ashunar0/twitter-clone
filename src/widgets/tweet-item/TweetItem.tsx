@@ -1,22 +1,16 @@
 import type { ReactNode } from "react";
 import { Heart, MessageCircle, Repeat2, Share, User } from "lucide-react";
+import type { Tweet } from "@features/tweets/type";
+import type { AuthorSummary } from "@features/tweets/schema";
 import { Avatar } from "@/shared/ui/avatar";
 import { useToggleLikeMutation } from "@features/likes/client/mutations";
 import { useToggleRetweetMutation } from "@features/tweets/client/mutations";
 
-// timeline / thread に並べる 1 ツイート表示。
-// like / retweet は id + mine 状態を受け取って自前で mutation を発火する。
+// timeline / thread に並べる 1 ツイート表示。tweet / author はそのまま渡す。
+// count と mine 状態は Tweet の外にある (read model の別 field) ので個別 prop で受ける。
 export type TweetItemProps = {
-  // target tweet の id (retweet 行の場合は元 tweet の id)。like / retweet が指す先。
-  id: string;
-  author: {
-    name: string;
-    handle: string;
-    avatarUrl?: string | null;
-  };
-  body: string;
-  // ISO 文字列。表示は相対時刻に整形する。
-  createdAt: string;
+  tweet: Tweet;
+  author: AuthorSummary | undefined;
   replyCount?: number;
   retweetCount?: number;
   likeCount?: number;
@@ -25,10 +19,8 @@ export type TweetItemProps = {
 };
 
 export function TweetItem({
-  id,
+  tweet,
   author,
-  body,
-  createdAt,
   replyCount = 0,
   retweetCount = 0,
   likeCount = 0,
@@ -38,16 +30,21 @@ export function TweetItem({
   const toggleLike = useToggleLikeMutation();
   const toggleRetweet = useToggleRetweetMutation();
 
-  const onLike = () => toggleLike.mutate({ tweetId: id, nextMine: !mineLike });
+  const onLike = () =>
+    toggleLike.mutate({ tweetId: tweet.id, nextMine: !mineLike });
   const onRetweet = () =>
-    toggleRetweet.mutate({ originalId: id, nextMine: !mineRetweet });
+    toggleRetweet.mutate({ originalId: tweet.id, nextMine: !mineRetweet });
+
+  const displayName = author?.name ?? "";
+  const displayHandle = author?.handle ?? "";
+  const avatarUrl = author?.avatarUrl ?? null;
 
   return (
     <article className="flex gap-3 border-b border-border px-4 py-3">
       <Avatar.Root className="size-10 shrink-0">
         {/* src が無い時に <img> を描くと alt が視覚露出するので、URL がある時だけ Image を出す */}
-        {author.avatarUrl ? (
-          <Avatar.Image src={author.avatarUrl} alt={author.name} />
+        {avatarUrl ? (
+          <Avatar.Image src={avatarUrl} alt={displayName} />
         ) : null}
         <Avatar.Fallback>
           <User className="size-5 text-fg-subtle" aria-hidden />
@@ -55,15 +52,15 @@ export function TweetItem({
       </Avatar.Root>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <header className="flex items-center gap-1 text-sm">
-          <span className="truncate font-bold text-fg">{author.name}</span>
-          <span className="truncate text-fg-muted">@{author.handle}</span>
+          <span className="truncate font-bold text-fg">{displayName}</span>
+          <span className="truncate text-fg-muted">@{displayHandle}</span>
           <span className="text-fg-muted">·</span>
-          <time className="text-fg-muted" dateTime={createdAt}>
-            {formatRelativeTime(createdAt)}
+          <time className="text-fg-muted" dateTime={tweet.createdAt}>
+            {formatRelativeTime(tweet.createdAt)}
           </time>
         </header>
         <p className="whitespace-pre-wrap wrap-break-word text-sm text-fg">
-          {body}
+          {tweet.body}
         </p>
         <footer className="mt-2 flex max-w-md items-center justify-between text-fg-muted">
           <ActionButton
@@ -113,8 +110,7 @@ export function TweetItem({
   );
 }
 
-// action row の 1 個 (icon + optional count)。hover でうっすら色が変わる、count 0 は非表示。
-// active 状態は色を上塗り、click は親から差し込み。
+// action row の 1 個 (icon + optional count)。icon 背後の丸だけに hover bg を出す (Twitter 準拠)。
 function ActionButton({
   icon,
   count,

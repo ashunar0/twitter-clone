@@ -74,30 +74,19 @@ export function UserProfileScreen({ handle }: { handle: string }) {
         <>
           <ul className="flex flex-col gap-3">
             {tweets.tweets.map((tweet) => {
+              // retweet 行なら元 tweet を表示、行 author (retweeter) は TweetItem の retweet header 再対応時に戻す。
               const isRt = tweet.retweetOfId != null;
-              const original = isRt ? tweets.originalTweets[tweet.retweetOfId!] : null;
+              const original = isRt
+                ? tweets.originalTweets[tweet.retweetOfId!]
+                : null;
               const displayTweet = original?.tweet ?? tweet;
               const displayAuthor =
                 original?.author ?? tweets.authorSummaries[tweet.authorId];
-              const retweetedBy = isRt
-                ? tweets.authorSummaries[tweet.authorId]
-                : undefined;
-              const displayId = displayTweet.id;
-              // 新 TweetItem は表示専用の細い props に絞った。retweet header / media / mine 状態の
-              // 復活は TweetItem 再設計後に配線する。
-              void retweetedBy;
-              void displayId;
               return (
                 <TweetItem
                   key={tweet.id}
-                  id={displayTweet.id}
-                  author={{
-                    name: displayAuthor?.name ?? "",
-                    handle: displayAuthor?.handle ?? "",
-                    avatarUrl: displayAuthor?.avatarUrl ?? null,
-                  }}
-                  body={displayTweet.body}
-                  createdAt={displayTweet.createdAt}
+                  tweet={displayTweet}
+                  author={displayAuthor}
                   likeCount={tweets.likeState.counts[displayTweet.id] ?? 0}
                   retweetCount={tweets.retweetState.counts[displayTweet.id] ?? 0}
                   mineLike={tweets.likeState.mineIds.has(displayTweet.id)}
