@@ -8,7 +8,6 @@ import { useEffect } from "react";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import type { QueryClient } from "@tanstack/react-query";
-import { AppHeader } from "@/widgets/app-header/AppHeader";
 import { useSession } from "@features/users/client/auth-client";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
@@ -33,7 +32,6 @@ function RootLayout() {
 
   return (
     <>
-      <AppHeader />
       <Outlet />
       <TanStackRouterDevtools />
       <ReactQueryDevtools />
