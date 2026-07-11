@@ -90,6 +90,7 @@ export function UserProfileScreen({ handle }: { handle: string }) {
               return (
                 <TweetItem
                   key={tweet.id}
+                  id={displayTweet.id}
                   author={{
                     name: displayAuthor?.name ?? "",
                     handle: displayAuthor?.handle ?? "",
@@ -99,6 +100,8 @@ export function UserProfileScreen({ handle }: { handle: string }) {
                   createdAt={displayTweet.createdAt}
                   likeCount={tweets.likeState.counts[displayTweet.id] ?? 0}
                   retweetCount={tweets.retweetState.counts[displayTweet.id] ?? 0}
+                  mineLike={tweets.likeState.mineIds.has(displayTweet.id)}
+                  mineRetweet={tweets.retweetState.mineIds.has(displayTweet.id)}
                 />
               );
             })}

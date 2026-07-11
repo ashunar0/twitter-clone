@@ -1,9 +1,14 @@
 import type { ReactNode } from "react";
 import { Heart, MessageCircle, Repeat2, Share, User } from "lucide-react";
 import { Avatar } from "@/shared/ui/avatar";
+import { useToggleLikeMutation } from "@features/likes/client/mutations";
+import { useToggleRetweetMutation } from "@features/tweets/client/mutations";
 
-// timeline / thread に並べる 1 ツイート表示。仮 UI、実データ配線は後で差し込む。
+// timeline / thread に並べる 1 ツイート表示。
+// like / retweet は id + mine 状態を受け取って自前で mutation を発火する。
 export type TweetItemProps = {
+  // target tweet の id (retweet 行の場合は元 tweet の id)。like / retweet が指す先。
+  id: string;
   author: {
     name: string;
     handle: string;
@@ -15,16 +20,28 @@ export type TweetItemProps = {
   replyCount?: number;
   retweetCount?: number;
   likeCount?: number;
+  mineLike?: boolean;
+  mineRetweet?: boolean;
 };
 
 export function TweetItem({
+  id,
   author,
   body,
   createdAt,
   replyCount = 0,
   retweetCount = 0,
   likeCount = 0,
+  mineLike = false,
+  mineRetweet = false,
 }: TweetItemProps) {
+  const toggleLike = useToggleLikeMutation();
+  const toggleRetweet = useToggleRetweetMutation();
+
+  const onLike = () => toggleLike.mutate({ tweetId: id, nextMine: !mineLike });
+  const onRetweet = () =>
+    toggleRetweet.mutate({ originalId: id, nextMine: !mineRetweet });
+
   return (
     <article className="flex gap-3 border-b border-border px-4 py-3">
       <Avatar.Root className="size-10 shrink-0">
@@ -52,13 +69,44 @@ export function TweetItem({
           <ActionButton
             icon={<MessageCircle className="size-4" />}
             count={replyCount}
+            hoverColor="hover:text-brand-blue"
+            hoverBg="group-hover:bg-brand-blue/10"
           />
           <ActionButton
-            icon={<Repeat2 className="size-4" />}
+            icon={
+              <Repeat2
+                className={`size-4 ${mineRetweet ? "text-green-600" : ""}`}
+              />
+            }
             count={retweetCount}
+            active={mineRetweet}
+            activeColor="text-green-600"
+            hoverColor="hover:text-green-600"
+            hoverBg="group-hover:bg-green-600/10"
+            onClick={onRetweet}
+            disabled={toggleRetweet.isPending}
+            ariaLabel={mineRetweet ? "リツイート解除" : "リツイート"}
           />
-          <ActionButton icon={<Heart className="size-4" />} count={likeCount} />
-          <ActionButton icon={<Share className="size-4" />} />
+          <ActionButton
+            icon={
+              <Heart
+                className={`size-4 ${mineLike ? "fill-pink-600 text-pink-600" : ""}`}
+              />
+            }
+            count={likeCount}
+            active={mineLike}
+            activeColor="text-pink-600"
+            hoverColor="hover:text-pink-600"
+            hoverBg="group-hover:bg-pink-600/10"
+            onClick={onLike}
+            disabled={toggleLike.isPending}
+            ariaLabel={mineLike ? "いいね解除" : "いいね"}
+          />
+          <ActionButton
+            icon={<Share className="size-4" />}
+            hoverColor="hover:text-brand-blue"
+            hoverBg="group-hover:bg-brand-blue/10"
+          />
         </footer>
       </div>
     </article>
@@ -66,13 +114,47 @@ export function TweetItem({
 }
 
 // action row の 1 個 (icon + optional count)。hover でうっすら色が変わる、count 0 は非表示。
-function ActionButton({ icon, count }: { icon: ReactNode; count?: number }) {
+// active 状態は色を上塗り、click は親から差し込み。
+function ActionButton({
+  icon,
+  count,
+  active = false,
+  activeColor,
+  hoverColor,
+  hoverBg,
+  onClick,
+  disabled,
+  ariaLabel,
+}: {
+  icon: ReactNode;
+  count?: number;
+  active?: boolean;
+  activeColor?: string;
+  hoverColor?: string;
+  hoverBg?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  ariaLabel?: string;
+}) {
   return (
     <button
       type="button"
-      className="flex items-center gap-1 rounded-full px-2 py-1 text-xs hover:bg-hover hover:text-fg"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      aria-pressed={active}
+      className={`group flex min-w-14 items-center gap-1 text-xs tabular-nums transition-colors disabled:opacity-50 ${active && activeColor ? activeColor : ""} ${hoverColor ?? "hover:text-fg"}`}
     >
-      {icon}
+      {/* hover bg は icon の背後だけに丸く出す (Twitter 準拠)。button 全体には出さない。 */}
+      <span
+        className={`flex size-8 items-center justify-center rounded-full transition-colors ${hoverBg ?? "group-hover:bg-hover"}`}
+      >
+        {icon}
+      </span>
+      {/* count > 0 の時だけ数字を出すが、非表示時も同じ幅を占有するため min-w を button 側に確保する。 */}
       {count && count > 0 ? <span>{count}</span> : null}
     </button>
   );
