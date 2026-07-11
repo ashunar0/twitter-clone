@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Heart, MessageCircle, Repeat2, Share } from "lucide-react";
+import { Heart, MessageCircle, Repeat2, Share, User } from "lucide-react";
 import { Avatar } from "@/shared/ui/avatar";
 
 // timeline / thread に並べる 1 ツイート表示。仮 UI、実データ配線は後で差し込む。
@@ -28,8 +28,13 @@ export function TweetItem({
   return (
     <article className="flex gap-3 border-b border-border px-4 py-3">
       <Avatar.Root className="size-10 shrink-0">
-        <Avatar.Image src={author.avatarUrl ?? undefined} alt={author.name} />
-        <Avatar.Fallback name={author.name} />
+        {/* src が無い時に <img> を描くと alt が視覚露出するので、URL がある時だけ Image を出す */}
+        {author.avatarUrl ? (
+          <Avatar.Image src={author.avatarUrl} alt={author.name} />
+        ) : null}
+        <Avatar.Fallback>
+          <User className="size-5 text-fg-subtle" aria-hidden />
+        </Avatar.Fallback>
       </Avatar.Root>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <header className="flex items-center gap-1 text-sm">
