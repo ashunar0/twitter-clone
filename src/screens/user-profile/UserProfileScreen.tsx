@@ -83,17 +83,22 @@ export function UserProfileScreen({ handle }: { handle: string }) {
                 ? tweets.authorSummaries[tweet.authorId]
                 : undefined;
               const displayId = displayTweet.id;
+              // 新 TweetItem は表示専用の細い props に絞った。retweet header / media / mine 状態の
+              // 復活は TweetItem 再設計後に配線する。
+              void retweetedBy;
+              void displayId;
               return (
                 <TweetItem
                   key={tweet.id}
-                  tweet={displayTweet}
-                  author={displayAuthor}
-                  retweetedBy={retweetedBy}
-                  likeCount={tweets.likeState.counts[displayId] ?? 0}
-                  mineLike={tweets.likeState.mineIds.has(displayId)}
-                  retweetCount={tweets.retweetState.counts[displayId] ?? 0}
-                  mineRetweet={tweets.retweetState.mineIds.has(displayId)}
-                  media={tweets.mediaSummaries[displayId]}
+                  author={{
+                    name: displayAuthor?.name ?? "",
+                    handle: displayAuthor?.handle ?? "",
+                    avatarUrl: displayAuthor?.avatarUrl ?? null,
+                  }}
+                  body={displayTweet.body}
+                  createdAt={displayTweet.createdAt}
+                  likeCount={tweets.likeState.counts[displayTweet.id] ?? 0}
+                  retweetCount={tweets.retweetState.counts[displayTweet.id] ?? 0}
                 />
               );
             })}

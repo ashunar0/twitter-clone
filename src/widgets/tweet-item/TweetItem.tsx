@@ -1,219 +1,88 @@
-import { useState, type FormEvent } from "react";
-import { Link } from "@tanstack/react-router";
-import { Heart, MessageCircle, Repeat2 } from "lucide-react";
-import type { Tweet } from "@features/tweets/type";
-import type { AuthorSummary } from "@features/tweets/schema";
-import type { MediaSummary } from "@features/media/schema";
-import { useToggleLikeMutation } from "@features/likes/client/mutations";
-import {
-  useCreateTweetMutation,
-  useToggleRetweetMutation,
-} from "@features/tweets/client/mutations";
-import { useCurrentProfileQuery } from "@features/profiles/client/queries";
-import { Button } from "@/shared/ui/button";
+import type { ReactNode } from "react";
+import { Heart, MessageCircle, Repeat2, Share } from "lucide-react";
+import { Avatar } from "@/shared/ui/avatar";
 
-// body 内の @handle を profile link に装飾する。handle は 3〜15 文字 [a-zA-Z0-9_]。
-// BE 側の抽出 regex (features/tweets/server/usecases/createTweet.ts) と揃える。
-const MENTION_RE = /(?<![a-zA-Z0-9_])@([a-zA-Z0-9_]{3,15})(?![a-zA-Z0-9_])/g;
-function renderTweetBody(body: string) {
-  const parts: (string | { handle: string; key: number })[] = [];
-  let last = 0;
-  let key = 0;
-  for (const m of body.matchAll(MENTION_RE)) {
-    const idx = m.index ?? 0;
-    if (idx > last) parts.push(body.slice(last, idx));
-    parts.push({ handle: m[1] ?? "", key: key++ });
-    last = idx + m[0].length;
-  }
-  if (last < body.length) parts.push(body.slice(last));
-  return parts.map((p) =>
-    typeof p === "string" ? (
-      p
-    ) : (
-      <Link
-        key={`m${p.key}`}
-        to="/u/$handle"
-        params={{ handle: p.handle }}
-        className="text-sky-600 hover:underline"
-      >
-        @{p.handle}
-      </Link>
-    ),
-  );
-}
-
-const MAX_LENGTH = 280;
-
-// 1 tweet + author + like/retweet/reply を並べる item。timeline / profile 両画面で共有する widget。
-// retweet 表示は「retweetedBy がヘッダー、tweet/author は元 tweet 側」で受ける (screen 側で解決済み)。
-// like / retweet の count / mine は元 tweet id に対する値を受ける (=display 対象の集計)。
-export function TweetItem({
-  tweet,
-  author,
-  retweetedBy,
-  likeCount,
-  mineLike,
-  retweetCount,
-  mineRetweet,
-  media,
-}: {
-  tweet: Tweet;
-  author: AuthorSummary | undefined;
-  retweetedBy?: AuthorSummary;
-  likeCount: number;
-  mineLike: boolean;
-  retweetCount: number;
-  mineRetweet: boolean;
-  media?: MediaSummary[];
-}) {
-  const toggleLike = useToggleLikeMutation();
-  const toggleRetweet = useToggleRetweetMutation();
-  const [replying, setReplying] = useState(false);
-
-  return (
-    <li className="rounded-lg border border-neutral-200 p-4">
-      {retweetedBy ? (
-        <div className="mb-2 flex items-center gap-1 text-xs text-neutral-500">
-          <Repeat2 size={14} />
-          <span>{retweetedBy.name} が retweet</span>
-        </div>
-      ) : null}
-      <div className="mb-1 text-sm text-neutral-600">
-        <span className="font-semibold text-neutral-900">
-          {author?.name ?? "unknown"}
-        </span>
-        <span className="ml-2">@{author?.handle ?? "unknown"}</span>
-      </div>
-      <p className="whitespace-pre-wrap">{renderTweetBody(tweet.body)}</p>
-      {media && media.length > 0 && (
-        <div
-          className={`mt-2 grid gap-1 overflow-hidden rounded-lg ${
-            media.length === 1 ? "grid-cols-1" : "grid-cols-2"
-          }`}
-        >
-          {media.map((m) => (
-            <img
-              key={m.id}
-              src={m.url}
-              alt=""
-              className="max-h-72 w-full object-cover"
-            />
-          ))}
-        </div>
-      )}
-      <div className="mt-2 flex items-center justify-between">
-        <span className="text-xs text-neutral-400">{tweet.createdAt}</span>
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => setReplying((v) => !v)}
-            aria-label={replying ? "Cancel reply" : "Reply"}
-            className={`flex items-center gap-1 text-sm ${
-              replying ? "text-sky-600" : "text-neutral-500 hover:text-sky-600"
-            }`}
-          >
-            <MessageCircle size={16} />
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              toggleRetweet.mutate({
-                originalId: tweet.id,
-                nextMine: !mineRetweet,
-              })
-            }
-            aria-label={mineRetweet ? "Unretweet" : "Retweet"}
-            className={`flex items-center gap-1 text-sm ${
-              mineRetweet
-                ? "text-emerald-600"
-                : "text-neutral-500 hover:text-emerald-600"
-            }`}
-          >
-            <Repeat2 size={16} />
-            <span>{retweetCount}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              toggleLike.mutate({ tweetId: tweet.id, nextMine: !mineLike })
-            }
-            aria-label={mineLike ? "Unlike" : "Like"}
-            className={`flex items-center gap-1 text-sm ${
-              mineLike ? "text-pink-600" : "text-neutral-500 hover:text-pink-600"
-            }`}
-          >
-            <Heart size={16} fill={mineLike ? "currentColor" : "none"} />
-            <span>{likeCount}</span>
-          </button>
-        </div>
-      </div>
-      {replying ? (
-        <ReplyForm parentId={tweet.id} onDone={() => setReplying(false)} />
-      ) : null}
-    </li>
-  );
-}
-
-// TweetItem 内の折り畳み reply 入力欄。parentId 付きで POST /api/tweets を叩く。
-function ReplyForm({
-  parentId,
-  onDone,
-}: {
-  parentId: string;
-  onDone: () => void;
-}) {
-  const currentProfileQuery = useCurrentProfileQuery();
-  const currentProfile = currentProfileQuery.data;
-  const createTweet = useCreateTweetMutation(currentProfile!);
-  const [body, setBody] = useState("");
-  const disabled =
-    !currentProfile || body.trim().length === 0 || createTweet.isPending;
-
-  // reply を発火、成功で入力欄を閉じる。
-  const onSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (disabled || !currentProfile) return;
-    createTweet.mutate(
-      { body: body.trim(), parentId, mediaIds: [] },
-      {
-        onSuccess: () => {
-          setBody("");
-          onDone();
-        },
-      },
-    );
+// timeline / thread に並べる 1 ツイート表示。仮 UI、実データ配線は後で差し込む。
+export type TweetItemProps = {
+  author: {
+    name: string;
+    handle: string;
+    avatarUrl?: string | null;
   };
+  body: string;
+  // ISO 文字列。表示は相対時刻に整形する。
+  createdAt: string;
+  replyCount?: number;
+  retweetCount?: number;
+  likeCount?: number;
+};
 
+export function TweetItem({
+  author,
+  body,
+  createdAt,
+  replyCount = 0,
+  retweetCount = 0,
+  likeCount = 0,
+}: TweetItemProps) {
   return (
-    <form onSubmit={onSubmit} className="mt-3 flex flex-col gap-2">
-      <textarea
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        placeholder="Write a reply…"
-        maxLength={MAX_LENGTH}
-        rows={2}
-        disabled={!currentProfile}
-        className="w-full rounded-lg border border-neutral-300 p-2 text-sm focus:border-neutral-500 focus:outline-none"
-      />
-      <div className="flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={onDone}
-          className="text-sm text-neutral-500 hover:text-neutral-700"
-        >
-          Cancel
-        </button>
-        <Button
-          type="submit"
-          disabled={disabled}
-          loading={createTweet.isPending}
-        >
-          Reply
-        </Button>
+    <article className="flex gap-3 border-b border-border px-4 py-3">
+      <Avatar.Root className="size-10 shrink-0">
+        <Avatar.Image src={author.avatarUrl ?? undefined} alt={author.name} />
+        <Avatar.Fallback name={author.name} />
+      </Avatar.Root>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <header className="flex items-center gap-1 text-sm">
+          <span className="truncate font-bold text-fg">{author.name}</span>
+          <span className="truncate text-fg-muted">@{author.handle}</span>
+          <span className="text-fg-muted">·</span>
+          <time className="text-fg-muted" dateTime={createdAt}>
+            {formatRelativeTime(createdAt)}
+          </time>
+        </header>
+        <p className="whitespace-pre-wrap wrap-break-word text-sm text-fg">
+          {body}
+        </p>
+        <footer className="mt-2 flex max-w-md items-center justify-between text-fg-muted">
+          <ActionButton
+            icon={<MessageCircle className="size-4" />}
+            count={replyCount}
+          />
+          <ActionButton
+            icon={<Repeat2 className="size-4" />}
+            count={retweetCount}
+          />
+          <ActionButton icon={<Heart className="size-4" />} count={likeCount} />
+          <ActionButton icon={<Share className="size-4" />} />
+        </footer>
       </div>
-      {createTweet.isError ? (
-        <div className="text-sm text-red-600">reply に失敗した。もう一度。</div>
-      ) : null}
-    </form>
+    </article>
   );
+}
+
+// action row の 1 個 (icon + optional count)。hover でうっすら色が変わる、count 0 は非表示。
+function ActionButton({ icon, count }: { icon: ReactNode; count?: number }) {
+  return (
+    <button
+      type="button"
+      className="flex items-center gap-1 rounded-full px-2 py-1 text-xs hover:bg-hover hover:text-fg"
+    >
+      {icon}
+      {count && count > 0 ? <span>{count}</span> : null}
+    </button>
+  );
+}
+
+// 相対時刻整形 (仮実装): 分/時/日、それ以上は月日で。i18n / library はまだ入れない。
+function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diffMs / 60_000);
+  if (min < 1) return "now";
+  if (min < 60) return `${min}m`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}d`;
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
 }
