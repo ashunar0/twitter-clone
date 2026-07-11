@@ -23,7 +23,8 @@ twitter-clone/
 ├─ server/                 ← BE entry (Node で起動する別プロセス、別 build)
 │  ├─ app.ts               ← Hono app 定義層 (runtime 非依存、AppType export)
 │  ├─ index.ts             ← Node 起動 entry (dev / prod-Node)
-│  └─ lib/                 ← BE utility (db client / seed / mock auth 等)
+│  ├─ lib/                 ← BE pure util (errors / zv / drizzle schema aggregation)
+│  └─ infra/               ← BE 副作用あり glue (db / storage factory, middleware, auth, seed)
 ├─ drizzle/                ← DB migrations (drizzle-kit 生成)
 ├─ package.json            ← 単一 (workspace 不使用)
 ├─ tsconfig.{json, web.json, server.json}
@@ -43,7 +44,7 @@ src/app          ─→ src/screens ─→ src/widgets ─→ src/shared, src/li
 
 server/          ─→ features/<domain>/{server, schema, type, lib}
 
-features/<domain>/server ─→ features/<domain>/{schema, type, lib}, server/lib
+features/<domain>/server ─→ features/<domain>/{schema, type, lib}, server/lib, server/infra
 features/<domain>/client ─→ features/<domain>/{schema, type, lib}, src/lib
 ```
 
@@ -53,6 +54,23 @@ features/<domain>/client ─→ features/<domain>/{schema, type, lib}, src/lib
 2. **`features/*/client` を `server/` から import しない** — BE bundle に React が混じる
 3. **`features/<A>` の内部を `features/<B>` から import しない** — cross-domain 合成は BE endpoint (read model) で解決
 4. **`src/lib/hono/client.ts` の `rpcClient` は `features/*/client/rpc.ts` からのみ呼ぶ** — screens / widgets / component が直接 rpc を叩かない
+
+## server/lib と server/infra の切り分け
+
+「lib は何を入れていい folder か」の曖昧化 (肥大化リスク) を避けるために、`server/` 直下で 2 分割する。
+
+| folder | 中身 | 判定 |
+|---|---|---|
+| `server/lib/` | pure fn / 副作用なし util | `import` 時に外部 (DB / network / storage / env) に触らない、テスト時 mock 不要 |
+| `server/infra/` | 副作用ある factory / middleware / seed / library adapter | DB や外部 lib の instance を作る、Hono middleware、better-auth 設定など |
+
+**`server/infra/` は features 間の crossing を wire する唯一の場所**として認める。例: `server/infra/authOnboarding.ts` は `features/profiles/server/service` を import して better-auth の onboarding hooks に流し込む。features 同士は互いを知らない (硬い禁止 3) を守るための逃げ道として infra が composition root 役を担う。
+
+### 判定に迷ったら
+
+- pure か？ (side effect / IO なし) → `lib`
+- 何かの instance factory か middleware か seed か → `infra`
+- features 越境の wire が必要 → `infra` (feature 側は互いを知らない)
 
 ## FE / BE 型境界
 
