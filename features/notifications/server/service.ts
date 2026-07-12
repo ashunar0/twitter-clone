@@ -1,4 +1,8 @@
-import type { ActorSummary, NotificationsListResponseWire } from "../schema";
+import type {
+  ActorSummary,
+  NotificationsListResponseWire,
+  NotificationWire,
+} from "../schema";
 import type { DB } from "../../../server/infra/db";
 import {
   profilesRepository,
@@ -6,14 +10,17 @@ import {
 } from "../../profiles/server/repository";
 import { notificationsRepository, type StoredNotification } from "./repository";
 
-// DB row → wire 形。
-function toWire(row: StoredNotification) {
+// DB stored → wire 形。actorIds は既に array 化されている (repository で JSON parse 済み)。
+function toWire(row: StoredNotification): NotificationWire {
   return {
     id: row.id,
     kind: row.kind,
-    actorId: row.actorId,
+    objectId: row.objectId,
+    actorIds: row.actorIds,
+    count: row.count,
     isRead: row.isRead,
-    createdAt: row.createdAt,
+    firstAt: row.firstAt,
+    lastAt: row.lastAt,
   };
 }
 
@@ -27,25 +34,26 @@ function toActorSummary(row: StoredProfileWithUser): ActorSummary {
 }
 
 export const notificationsService = {
-  // usecase から呼ばれる。特定 recipient に対して actor が起こした kind の通知を記録する。
+  // usecase から呼ばれる。特定 recipient に対して actor が起こした kind の event を集約先に merge or 新規作成する。
+  // objectId は集約 key の一部 (follow は null、like/retweet/reply/mention は対象 tweet id)。
   async record(
     db: DB,
-    input: { kind: string; recipientId: string; actorId: string },
+    input: {
+      kind: string;
+      recipientId: string;
+      actorId: string;
+      objectId: string | null;
+    },
   ): Promise<void> {
-    await notificationsRepository.insert(db, {
-      id: crypto.randomUUID(),
-      recipientId: input.recipientId,
-      kind: input.kind,
-      actorId: input.actorId,
-    });
+    await notificationsRepository.findOrCreateAggregate(db, input);
   },
-  // list: current user 宛の通知 + actor summary + unreadCount を返す (cross-domain read model)。
+  // list: current user 宛の aggregate 群 + 全 actorIds を union した actorSummaries + unreadCount を返す。
   async list(
     db: DB,
     currentUserId: string,
   ): Promise<NotificationsListResponseWire> {
     const rows = await notificationsRepository.findByRecipient(db, currentUserId);
-    const actorIds = [...new Set(rows.map((r) => r.actorId))];
+    const actorIds = [...new Set(rows.flatMap((r) => r.actorIds))];
     const [profileRows, unreadCount] = await Promise.all([
       profilesRepository.findByUserIds(db, actorIds),
       notificationsRepository.countUnread(db, currentUserId),
@@ -60,7 +68,7 @@ export const notificationsService = {
       unreadCount,
     };
   },
-  // 全通知を既読にする。
+  // 全 aggregate を既読に。以降の event は新 aggregate として作られる。
   async markAllRead(db: DB, currentUserId: string): Promise<void> {
     await notificationsRepository.markAllRead(db, currentUserId);
   },

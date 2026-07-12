@@ -35,7 +35,9 @@ export function NotificationsScreen({
       ? MOCK_NOTIFICATIONS
       : data.notifications.map((n) => ({
           notification: n,
-          actor: data.actorSummaries[n.actorId],
+          actors: n.actorIds
+            .map((id) => data.actorSummaries[id])
+            .filter((a): a is ActorSummary => !!a),
         }));
   const filtered =
     filter === "mentions"
@@ -51,17 +53,16 @@ export function NotificationsScreen({
   );
 }
 
-// 通知 1 行の viewmodel。reply / mention の時は関連 tweet + その author を持つ。
-// FE mock 段階なので schema には未反映、後で notification.targetTweetId を生やして server 側で埋める予定。
+// 通知 1 行の viewmodel。aggregate に対応: 複数 actor を並べたいので actor 単数から actors[] に変更。
+// reply / mention の時は関連 tweet + その author を持って TweetItem を埋め込む。
 type NotificationRow = {
   notification: Notification;
-  actor: ActorSummary | undefined;
+  actors: ActorSummary[];
   targetTweet?: Tweet;
   targetAuthor?: AuthorSummary;
 };
 
-// kind ごとの見た目メタ (icon / 色 / 文言)。schema.kind は string なので未対応は default にフォールバック。
-// suffix は actor 名の直後に続く固定文言 — 名前だけ bold 表示するため文字列を name / suffix に分けて持つ。
+// kind ごとの見た目メタ (icon / 色 / 文言)。suffix は actor 表示の直後に続く固定文言。
 type KindMeta = {
   icon: ComponentType<SVGProps<SVGSVGElement>>;
   colorClass: string;
@@ -69,47 +70,77 @@ type KindMeta = {
 };
 
 // FIXME: 見た目確認用の仮データ。動作確認終わったら消す。
-// reply / mention は targetTweet + targetAuthor を持って、item 内に TweetItem を埋め込むための材料にする。
+// follow は aggregate (count=2 と count=12 の例)、reply / mention は個別 aggregate (count=1)。
 const MOCK_NOTIFICATIONS: NotificationRow[] = [
   {
     notification: {
       id: "m1",
       kind: "follow",
-      actorId: "a1",
+      objectId: null,
+      actorIds: ["a1", "a3"],
+      count: 2,
       isRead: false,
-      createdAt: "2026-07-12",
+      firstAt: "2026-07-12T00:00:00Z",
+      lastAt: "2026-07-12T00:00:00Z",
     },
-    actor: { handle: "anthropic", name: "Anthropic", avatarUrl: null },
+    actors: [
+      { handle: "anthropic", name: "Anthropic", avatarUrl: null },
+      { handle: "ashunar0", name: "あさひ", avatarUrl: null },
+    ],
   },
   {
     notification: {
       id: "m2",
       kind: "like",
-      actorId: "a2",
+      objectId: "your-tweet",
+      actorIds: ["a2"],
+      count: 1,
       isRead: false,
-      createdAt: "2026-07-12",
+      firstAt: "2026-07-12T00:00:00Z",
+      lastAt: "2026-07-12T00:00:00Z",
     },
-    actor: { handle: "zundamon", name: "ずんだもん", avatarUrl: null },
+    actors: [{ handle: "zundamon", name: "ずんだもん", avatarUrl: null }],
   },
   {
     notification: {
       id: "m3",
       kind: "retweet",
-      actorId: "a3",
+      objectId: "your-tweet",
+      actorIds: [
+        "a3", "a2", "a1", "a4", "a5", "a6", "a7", "a8", "a9", "a10", "a11", "a12",
+      ],
+      count: 12,
       isRead: true,
-      createdAt: "2026-07-11",
+      firstAt: "2026-07-11T00:00:00Z",
+      lastAt: "2026-07-11T00:00:00Z",
     },
-    actor: { handle: "ashunar0", name: "あさひ", avatarUrl: null },
+    actors: [
+      { handle: "ashunar0", name: "あさひ", avatarUrl: null },
+      { handle: "zundamon", name: "ずんだもん", avatarUrl: null },
+      { handle: "anthropic", name: "Anthropic", avatarUrl: null },
+      { handle: "cloudflare", name: "Cloudflare", avatarUrl: null },
+      { handle: "tanstack", name: "TanStack", avatarUrl: null },
+      { handle: "react", name: "React", avatarUrl: null },
+      { handle: "drizzle", name: "Drizzle", avatarUrl: null },
+      { handle: "hono", name: "Hono", avatarUrl: null },
+      { handle: "vite", name: "Vite", avatarUrl: null },
+      { handle: "typescript", name: "TypeScript", avatarUrl: null },
+      { handle: "vercel", name: "Vercel", avatarUrl: null },
+      { handle: "supabase", name: "Supabase", avatarUrl: null },
+    ],
   },
   {
     notification: {
       id: "m4",
       kind: "reply",
-      actorId: "a2",
+      objectId: "mt4",
+      actorIds: ["a2"],
+      count: 1,
       isRead: true,
-      createdAt: "2026-07-11",
+      firstAt: "2026-07-11T10:00:00Z",
+      lastAt: "2026-07-11T10:00:00Z",
     },
-    actor: { handle: "zundamon", name: "ずんだもん", avatarUrl: null },
+    actors: [{ handle: "zundamon", name: "ずんだもん", avatarUrl: null }],
     targetTweet: {
       id: "mt4",
       authorId: "a2",
@@ -124,11 +155,14 @@ const MOCK_NOTIFICATIONS: NotificationRow[] = [
     notification: {
       id: "m5",
       kind: "mention",
-      actorId: "a1",
+      objectId: "mt5",
+      actorIds: ["a1"],
+      count: 1,
       isRead: true,
-      createdAt: "2026-07-10",
+      firstAt: "2026-07-10T15:00:00Z",
+      lastAt: "2026-07-10T15:00:00Z",
     },
-    actor: { handle: "anthropic", name: "Anthropic", avatarUrl: null },
+    actors: [{ handle: "anthropic", name: "Anthropic", avatarUrl: null }],
     targetTweet: {
       id: "mt5",
       authorId: "a1",
@@ -145,36 +179,66 @@ const KIND_META: Record<string, KindMeta> = {
   follow: {
     icon: UserPlus,
     colorClass: "text-brand-blue",
-    suffix: " さんにフォローされました",
+    suffix: "にフォローされました",
   },
   like: {
     icon: Heart,
     colorClass: "text-pink-500",
-    suffix: " さんがあなたのツイートをいいねしました",
+    suffix: "があなたのツイートをいいねしました",
   },
   retweet: {
     icon: Repeat2,
     colorClass: "text-emerald-500",
-    suffix: " さんがあなたのツイートをリツイートしました",
+    suffix: "があなたのツイートをリツイートしました",
   },
   reply: {
     icon: MessageCircle,
     colorClass: "text-brand-blue",
-    suffix: " さんがあなたのツイートに返信しました",
+    suffix: "があなたのツイートに返信しました",
   },
   mention: {
     icon: AtSign,
     colorClass: "text-brand-blue",
-    suffix: " さんがあなたにメンションしました",
+    suffix: "があなたにメンションしました",
   },
 };
 
+// aggregate の表示用文言を組み立てる。
+// - count=1: "{actor1}さん"
+// - count=2: "{actor1}さんと{actor2}さん"
+// - count>=3: "{actor1}さんと他 {count-1} 人"
+// actors[] が count に足りない (server-side で先頭 N しか返さない構成の場合) も、count 側を信じて他 N 人表記に落ちる。
+function renderActorPhrase(actors: ActorSummary[], count: number) {
+  const first = actors[0]?.name ?? "unknown";
+  if (count <= 1) {
+    return (
+      <>
+        <strong className="font-bold">{first}</strong>さん
+      </>
+    );
+  }
+  if (count === 2) {
+    const second = actors[1]?.name ?? "unknown";
+    return (
+      <>
+        <strong className="font-bold">{first}</strong>さんと
+        <strong className="font-bold">{second}</strong>さん
+      </>
+    );
+  }
+  return (
+    <>
+      <strong className="font-bold">{first}</strong>さんと他 {count - 1} 人
+    </>
+  );
+}
+
 // 1 通知の表示。
 // - reply / mention: 完全に timeline の 1 tweet として TweetItem を出す (kind icon やヘッダ文言なし)
-// - follow / like / retweet: 左に色付き kind icon、右に actor avatar + 1 行本文
+// - follow / like / retweet: 左に色付き kind icon、右に actor avatar 群 + 1 行本文
 // 未読は brand-blue の薄い tint で背景を出す (X 準拠)。row 全体は border-b で仕切る。
 function NotificationItem({ row }: { row: NotificationRow }) {
-  const { notification, actor, targetTweet, targetAuthor } = row;
+  const { notification, actors, targetTweet, targetAuthor } = row;
   const unreadClass = notification.isRead ? "" : "bg-brand-blue/5";
 
   // reply / mention は tweet 本体だけを見せる。TweetItem 自身が article + border-b を持つのでそのまま li にラップする。
@@ -196,8 +260,10 @@ function NotificationItem({ row }: { row: NotificationRow }) {
   const meta = KIND_META[notification.kind];
   const Icon = meta?.icon ?? MessageCircle;
   const iconColor = meta?.colorClass ?? "text-fg-muted";
-  const actorName = actor?.name ?? "unknown";
   const suffix = meta?.suffix ?? ` did ${notification.kind}.`;
+  // 先頭 10 人までは avatar を並べて、それ以上は「+N」で潰す。
+  const shownAvatars = actors.slice(0, 10);
+  const overflowAvatarCount = Math.max(0, notification.count - shownAvatars.length);
 
   return (
     <li
@@ -208,29 +274,40 @@ function NotificationItem({ row }: { row: NotificationRow }) {
         <Icon className={`size-7 ${iconColor}`} aria-hidden />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        {actor ? (
-          <Link to="/u/$handle" params={{ handle: actor.handle }}>
-            <Avatar.Root className="size-8">
-              {actor.avatarUrl ? (
-                <Avatar.Image src={actor.avatarUrl} alt={actor.name} />
-              ) : null}
-              <Avatar.Fallback>
-                <User className="size-4 text-fg-subtle" aria-hidden />
-              </Avatar.Fallback>
-            </Avatar.Root>
-          </Link>
-        ) : (
-          <Avatar.Root className="size-8">
-            <Avatar.Fallback>
-              <User className="size-4 text-fg-subtle" aria-hidden />
-            </Avatar.Fallback>
-          </Avatar.Root>
-        )}
+        {/* aggregate は先頭 actor から順に avatar を並べる。1 人なら Link で profile へ、複数なら装飾に留める。 */}
+        <div className="flex items-center gap-1">
+          {shownAvatars.map((a, i) =>
+            actors.length === 1 ? (
+              <Link key={a.handle} to="/u/$handle" params={{ handle: a.handle }}>
+                <SmallAvatar actor={a} />
+              </Link>
+            ) : (
+              <SmallAvatar key={a.handle + i} actor={a} />
+            ),
+          )}
+          {overflowAvatarCount > 0 ? (
+            <span className="text-xs text-fg-muted">+{overflowAvatarCount}</span>
+          ) : null}
+        </div>
         <p className="text-sm text-fg">
-          <strong className="font-bold">{actorName}</strong>
+          {renderActorPhrase(actors, notification.count)}
           {suffix}
         </p>
       </div>
     </li>
+  );
+}
+
+// 通知 header 用の小さめ avatar (32px)。fallback は user icon。
+function SmallAvatar({ actor }: { actor: ActorSummary }) {
+  return (
+    <Avatar.Root className="size-8">
+      {actor.avatarUrl ? (
+        <Avatar.Image src={actor.avatarUrl} alt={actor.name} />
+      ) : null}
+      <Avatar.Fallback>
+        <User className="size-4 text-fg-subtle" aria-hidden />
+      </Avatar.Fallback>
+    </Avatar.Root>
   );
 }

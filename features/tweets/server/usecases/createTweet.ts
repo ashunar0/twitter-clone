@@ -67,14 +67,17 @@ export async function createTweet(
   }
 
   // reply 通知は parent author (自分以外) にだけ発火。
+  // objectId には reply tweet id (=作られた側) を入れる。tweet id は毎回一意なので集約されず 1 event 1 aggregate になる (X 挙動一致)。
   if (parentAuthorId && parentAuthorId !== currentUserId) {
     await notificationsService.record(db, {
       kind: "reply",
       recipientId: parentAuthorId,
       actorId: currentUserId,
+      objectId: created.id,
     });
   }
   // mention 通知は self と parent author (reply 通知が別途飛ぶ) を除外して発火する dedupe。
+  // objectId は mention 元 tweet の id (reply と同じく個別 aggregate になる)。
   for (const uid of mentionedUserIds) {
     if (uid === currentUserId) continue;
     if (uid === parentAuthorId) continue;
@@ -82,6 +85,7 @@ export async function createTweet(
       kind: "mention",
       recipientId: uid,
       actorId: currentUserId,
+      objectId: created.id,
     });
   }
 

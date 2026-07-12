@@ -22,6 +22,8 @@ export async function followUser(
       kind: "follow",
       recipientId: followeeId,
       actorId: currentUserId,
+      // follow は対象 tweet を持たない (同 recipient への follow event は 1 aggregate に merge される)。
+      objectId: null,
     });
   }
 }

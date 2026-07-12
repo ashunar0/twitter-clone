@@ -35,6 +35,8 @@ export async function retweetTweet(
       kind: "retweet",
       recipientId: finalTarget.authorId,
       actorId: currentUserId,
+      // objectId は「retweet された元 tweet の id」。同 tweet への retweet は 1 aggregate に merge される。
+      objectId: finalTarget.id,
     });
   }
 }
