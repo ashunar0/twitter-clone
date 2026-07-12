@@ -4,7 +4,6 @@ import {
   Heart,
   MessageCircle,
   Repeat2,
-  Settings,
   User,
   UserPlus,
 } from "lucide-react";
@@ -14,43 +13,45 @@ import { useNotificationsQuery } from "@features/notifications/client/queries";
 import type { Notification } from "@features/notifications/type";
 import type { ActorSummary } from "@features/notifications/schema";
 
-// 通知一覧画面。上部に header (タイトル + 設定 icon)、下に通知 list を並べる。
-export function NotificationsScreen() {
+// 通知一覧の list 本体。header / タブは NotificationsLayout 側が持ち、ここでは中身だけを返す。
+// filter="mentions" のときは kind === "mention" のみを表示する (X の /notifications/mentions 相当)。
+export function NotificationsScreen({
+  filter = "all",
+}: {
+  filter?: "all" | "mentions";
+} = {}) {
   const { data, isLoading, error } = useNotificationsQuery();
 
   if (isLoading) return <div className="p-6">Loading…</div>;
   if (error) return <div className="p-6 text-red-600">Failed to load</div>;
   if (!data) return null;
 
+  // 実データが 0 件のときだけ仮 mock を出す。mentions タブでは mention だけに絞る。
+  const items =
+    data.notifications.length === 0
+      ? MOCK_NOTIFICATIONS.map((n) => ({
+          notification: n.notification,
+          actor: n.actor,
+        }))
+      : data.notifications.map((n) => ({
+          notification: n,
+          actor: data.actorSummaries[n.actorId],
+        }));
+  const filtered =
+    filter === "mentions"
+      ? items.filter((i) => i.notification.kind === "mention")
+      : items;
+
   return (
-    <main className="min-h-svh w-full border-x border-border">
-      <div className="my-4 px-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold">Notifications</h1>
-        <Settings size={20} />
-      </div>
-      {data.notifications.length === 0 ? (
-        // FIXME: 通知が実データ 0 件のときの見た目確認用の仮 mock。動作確認終わったら消す。
-        <ul className="flex flex-col">
-          {MOCK_NOTIFICATIONS.map((n) => (
-            <NotificationItem
-              key={n.notification.id}
-              notification={n.notification}
-              actor={n.actor}
-            />
-          ))}
-        </ul>
-      ) : (
-        <ul className="flex flex-col">
-          {data.notifications.map((n) => (
-            <NotificationItem
-              key={n.id}
-              notification={n}
-              actor={data.actorSummaries[n.actorId]}
-            />
-          ))}
-        </ul>
-      )}
-    </main>
+    <ul className="flex flex-col">
+      {filtered.map(({ notification, actor }) => (
+        <NotificationItem
+          key={notification.id}
+          notification={notification}
+          actor={actor}
+        />
+      ))}
+    </ul>
   );
 }
 
