@@ -100,6 +100,15 @@ const MOCK_NOTIFICATIONS: NotificationRow[] = [
       lastAt: "2026-07-12T00:00:00Z",
     },
     actors: [{ handle: "zundamon", name: "ずんだもん", avatarUrl: null }],
+    targetTweet: {
+      id: "your-tweet",
+      authorId: "me",
+      parentId: null,
+      retweetOfId: null,
+      body: "今日は Twitter クローンをつくっているのだ。個人開発楽しい〜",
+      createdAt: "2026-07-11T20:00:00Z",
+    },
+    targetAuthor: { handle: "zundamon", name: "ずんだもん", avatarUrl: null },
   },
   {
     notification: {
@@ -107,7 +116,18 @@ const MOCK_NOTIFICATIONS: NotificationRow[] = [
       kind: "retweet",
       objectId: "your-tweet",
       actorIds: [
-        "a3", "a2", "a1", "a4", "a5", "a6", "a7", "a8", "a9", "a10", "a11", "a12",
+        "a3",
+        "a2",
+        "a1",
+        "a4",
+        "a5",
+        "a6",
+        "a7",
+        "a8",
+        "a9",
+        "a10",
+        "a11",
+        "a12",
       ],
       count: 12,
       isRead: true,
@@ -128,6 +148,15 @@ const MOCK_NOTIFICATIONS: NotificationRow[] = [
       { handle: "vercel", name: "Vercel", avatarUrl: null },
       { handle: "supabase", name: "Supabase", avatarUrl: null },
     ],
+    targetTweet: {
+      id: "your-tweet",
+      authorId: "me",
+      parentId: null,
+      retweetOfId: null,
+      body: "今日は Twitter クローンをつくっているのだ。個人開発楽しい〜",
+      createdAt: "2026-07-11T20:00:00Z",
+    },
+    targetAuthor: { handle: "zundamon", name: "ずんだもん", avatarUrl: null },
   },
   {
     notification: {
@@ -241,9 +270,14 @@ function NotificationItem({ row }: { row: NotificationRow }) {
   const { notification, actors, targetTweet, targetAuthor } = row;
   const unreadClass = notification.isRead ? "" : "bg-brand-blue/5";
 
-  // reply / mention は tweet 本体だけを見せる。TweetItem 自身が article + border-b を持つのでそのまま li にラップする。
+  // reply / mention は tweet 本体だけを見せる (TweetItem をそのまま出す)。
+  // like / retweet は同じ targetTweet を持っているが、そちらは下段 preview として使うので分岐条件は kind で絞る。
   // reply の場合は「返信先: @xxx さん」を出したいので、mock では自分 (現ユーザ) の handle を仮に載せておく。
-  if (targetTweet && targetAuthor) {
+  const isEmbeddedTweet =
+    (notification.kind === "reply" || notification.kind === "mention") &&
+    targetTweet &&
+    targetAuthor;
+  if (isEmbeddedTweet) {
     const replyingTo =
       notification.kind === "reply" ? { handle: "zundamon" } : undefined;
     return (
@@ -263,22 +297,33 @@ function NotificationItem({ row }: { row: NotificationRow }) {
   const suffix = meta?.suffix ?? ` did ${notification.kind}.`;
   // 先頭 10 人までは avatar を並べて、それ以上は「+N」で潰す。
   const shownAvatars = actors.slice(0, 10);
-  const overflowAvatarCount = Math.max(0, notification.count - shownAvatars.length);
+  const overflowAvatarCount = Math.max(
+    0,
+    notification.count - shownAvatars.length,
+  );
 
   return (
     <li
       className={`flex cursor-pointer gap-3 border-b border-border px-2 py-3 hover:bg-fg/5 ${unreadClass}`}
     >
-      {/* 左カラム: kind icon (中央より少し上寄せ)。avatar 列と幅を揃えて視覚リズムを作る。 */}
-      <div className="flex w-10 shrink-0 justify-end pt-1">
+      {/* 左カラム: kind icon。avatar 行 (size-8 = 32px) と同高さの box に中央寄せして、
+          隣の avatar と縦中心が揃うようにする。 */}
+      <div className="flex size-8 w-10 shrink-0 items-center justify-end">
         <Icon className={`size-7 ${iconColor}`} aria-hidden />
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         {/* aggregate は先頭 actor から順に avatar を並べる。1 人なら Link で profile へ、複数なら装飾に留める。 */}
         <div className="flex items-center gap-1">
           {shownAvatars.map((a, i) =>
             actors.length === 1 ? (
-              <Link key={a.handle} to="/u/$handle" params={{ handle: a.handle }}>
+              // Link は <a> なので inline / 行内配置になり size-8 avatar の外側に line-height 分の余白が付く。
+              // 明示的に flex 化して avatar と同高さで整える。
+              <Link
+                key={a.handle}
+                to="/u/$handle"
+                params={{ handle: a.handle }}
+                className="flex"
+              >
                 <SmallAvatar actor={a} />
               </Link>
             ) : (
@@ -286,13 +331,22 @@ function NotificationItem({ row }: { row: NotificationRow }) {
             ),
           )}
           {overflowAvatarCount > 0 ? (
-            <span className="text-xs text-fg-muted">+{overflowAvatarCount}</span>
+            <span className="text-xs text-fg-muted">
+              +{overflowAvatarCount}
+            </span>
           ) : null}
         </div>
         <p className="text-sm text-fg">
           {renderActorPhrase(actors, notification.count)}
           {suffix}
         </p>
+        {/* like / retweet は対象 tweet の本文を薄色で下に載せる (X 準拠、内容確認できる)。 */}
+        {targetTweet &&
+        (notification.kind === "like" || notification.kind === "retweet") ? (
+          <p className="whitespace-pre-wrap wrap-break-word text-sm text-fg-muted">
+            {targetTweet.body}
+          </p>
+        ) : null}
       </div>
     </li>
   );
