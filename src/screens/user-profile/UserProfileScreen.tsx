@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useRouter } from "@tanstack/react-router";
-import { ArrowLeft, Search } from "lucide-react";
+import { ArrowLeft, Mail, MoreHorizontal, Search, User } from "lucide-react";
+import { Avatar } from "@/shared/ui/avatar";
 import { useProfileByHandleQuery } from "@features/profiles/client/queries";
 import { useSession } from "@features/users/client/auth-client";
 import { useUserTweetsQuery } from "@features/tweets/client/queries";
@@ -46,6 +47,78 @@ function ProfileHeader({ name, postCount }: { name: string; postCount: number })
   );
 }
 
+// 横長のバナー画像 + 左下にかぶる大きめ avatar。schema にバナー画像がないので常に fg/10 の gray fallback。
+// avatar は banner の下辺に半分ずつまたがるよう、banner 内で bottom を -64px (avatar 半径) にオフセット。
+// banner の下にはみ出す 64px 分は、後続の ProfileActionRow (py-3 + size-lg = 64px) がちょうど埋める。
+function ProfileBanner({ avatar, name }: { avatar: string | null; name: string }) {
+  return (
+    <div className="relative h-48 w-full bg-fg/10">
+      <div className="absolute -bottom-16 left-4">
+        <Avatar.Root className="size-32 rounded-full ring-4 ring-bg">
+          {avatar ? <Avatar.Image src={avatar} alt={name} /> : null}
+          <Avatar.Fallback className="bg-fg/10">
+            <User className="size-14 text-fg-subtle" aria-hidden />
+          </Avatar.Fallback>
+        </Avatar.Root>
+      </div>
+    </div>
+  );
+}
+
+// バナー直下 (avatar と同じ横 strip) の右寄せアクション行。
+// - 自分: 「プロフィールを編集」ボタンのみ
+// - 他人: 左から menu (…) / DM (メール icon) / Follow ボタン
+// DM と menu は現状表示のみで動かない。
+function ProfileActionRow({
+  isMe,
+  isEditing,
+  userId,
+  onEdit,
+}: {
+  isMe: boolean;
+  isEditing: boolean;
+  userId: string;
+  onEdit: () => void;
+}) {
+  return (
+    <div className="flex justify-end gap-2 px-4 py-3">
+      {isMe ? (
+        !isEditing && (
+          <Button
+            variant="outline"
+            className="rounded-full font-bold"
+            onClick={onEdit}
+          >
+            プロフィールを編集
+          </Button>
+        )
+      ) : (
+        <>
+          <IconButton
+            type="button"
+            variant="outline"
+            size="lg"
+            aria-label="メニュー"
+            className="rounded-full"
+          >
+            <MoreHorizontal className="size-5" />
+          </IconButton>
+          <IconButton
+            type="button"
+            variant="outline"
+            size="lg"
+            aria-label="メッセージ"
+            className="rounded-full"
+          >
+            <Mail className="size-5" />
+          </IconButton>
+          <FollowButton targetUserId={userId} />
+        </>
+      )}
+    </div>
+  );
+}
+
 // user profile 画面。loader で prefetch 済みの profile / tweets / follow 情報を cache から読む。
 export function UserProfileScreen({ handle }: { handle: string }) {
   const profileQuery = useProfileByHandleQuery(handle);
@@ -67,38 +140,26 @@ export function UserProfileScreen({ handle }: { handle: string }) {
   return (
     <main className="min-h-svh w-full border-x border-border">
       <ProfileHeader name={profile.name} postCount={tweets?.tweets.length ?? 0} />
-      <div className="mb-6 rounded-lg border border-neutral-200 p-4">
-        <div className="mb-2 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">{profile.name}</h1>
-            <div className="text-sm text-neutral-600">@{profile.handle}</div>
-          </div>
-          {isMe ? (
-            !editing && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setEditing(true)}
-              >
-                Edit
-              </Button>
-            )
-          ) : (
-            <FollowButton targetUserId={profile.userId} />
-          )}
+      <ProfileBanner avatar={profile.avatarUrl} name={profile.name} />
+      <ProfileActionRow
+        isMe={isMe}
+        isEditing={editing}
+        userId={profile.userId}
+        onEdit={() => setEditing(true)}
+      />
+      <div className="mb-6 px-4">
+        <div>
+          <h1 className="text-xl font-bold text-fg">{profile.name}</h1>
+          <div className="text-sm text-fg-muted">@{profile.handle}</div>
         </div>
-        <div className="flex gap-4 text-sm text-neutral-700">
+        <div className="mt-3 flex gap-4 text-sm text-fg-muted">
           <span>
-            <strong className="text-neutral-900">
-              {counts?.followers ?? 0}
-            </strong>{" "}
-            Followers
+            <strong className="text-fg">{counts?.following ?? 0}</strong>{" "}
+            フォロー中
           </span>
           <span>
-            <strong className="text-neutral-900">
-              {counts?.following ?? 0}
-            </strong>{" "}
-            Following
+            <strong className="text-fg">{counts?.followers ?? 0}</strong>{" "}
+            フォロワー
           </span>
         </div>
         {isMe && editing ? (

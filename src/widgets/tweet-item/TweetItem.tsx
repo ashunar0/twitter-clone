@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
 import { Heart, MessageCircle, Repeat2, Share, User } from "lucide-react";
 import type { Tweet } from "@features/tweets/type";
 import type { AuthorSummary } from "@features/tweets/schema";
@@ -55,19 +56,55 @@ export function TweetItem({
         </div>
       ) : null}
       <div className="flex gap-3">
-      <Avatar.Root className="size-10 shrink-0">
-        {/* src が無い時に <img> を描くと alt が視覚露出するので、URL がある時だけ Image を出す */}
-        {avatarUrl ? (
-          <Avatar.Image src={avatarUrl} alt={displayName} />
-        ) : null}
-        <Avatar.Fallback>
-          <User className="size-5 text-fg-subtle" aria-hidden />
-        </Avatar.Fallback>
-      </Avatar.Root>
+      {/* avatar は author 特定できるときだけ Link 化。inline anchor の line-height 由来ズレを avoid するため flex を明示。 */}
+      {author ? (
+        <Link
+          to="/u/$handle"
+          params={{ handle: author.handle }}
+          className="flex shrink-0"
+        >
+          <Avatar.Root className="size-10">
+            {avatarUrl ? (
+              <Avatar.Image src={avatarUrl} alt={displayName} />
+            ) : null}
+            <Avatar.Fallback>
+              <User className="size-5 text-fg-subtle" aria-hidden />
+            </Avatar.Fallback>
+          </Avatar.Root>
+        </Link>
+      ) : (
+        <Avatar.Root className="size-10 shrink-0">
+          <Avatar.Fallback>
+            <User className="size-5 text-fg-subtle" aria-hidden />
+          </Avatar.Fallback>
+        </Avatar.Root>
+      )}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <header className="flex items-center gap-1 text-sm">
-          <span className="truncate font-bold text-fg">{displayName}</span>
-          <span className="truncate text-fg-muted">@{displayHandle}</span>
+          {/* 名前と handle も profile へのリンク。hover で name だけ下線が出るのが X 準拠。 */}
+          {author ? (
+            <>
+              <Link
+                to="/u/$handle"
+                params={{ handle: author.handle }}
+                className="truncate font-bold text-fg hover:underline"
+              >
+                {displayName}
+              </Link>
+              <Link
+                to="/u/$handle"
+                params={{ handle: author.handle }}
+                className="truncate text-fg-muted"
+              >
+                @{displayHandle}
+              </Link>
+            </>
+          ) : (
+            <>
+              <span className="truncate font-bold text-fg">{displayName}</span>
+              <span className="truncate text-fg-muted">@{displayHandle}</span>
+            </>
+          )}
           <span className="text-fg-muted">·</span>
           <time className="text-fg-muted" dateTime={tweet.createdAt}>
             {formatRelativeTime(tweet.createdAt)}

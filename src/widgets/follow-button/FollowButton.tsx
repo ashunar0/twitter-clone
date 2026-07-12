@@ -21,11 +21,16 @@ export function FollowButton({ targetUserId }: { targetUserId: string }) {
     <Button
       variant={isFollowing ? "outline" : "solid"}
       disabled={disabled}
+      className={
+        isFollowing
+          ? "rounded-full font-bold"
+          : "rounded-full bg-brand-blue font-bold text-white hover:bg-brand-blue-dark"
+      }
       onClick={() =>
         toggle.mutate({ targetUserId, nextFollowing: !isFollowing })
       }
     >
-      {isFollowing ? "Following" : "Follow"}
+      {isFollowing ? "フォロー中" : "フォローする"}
     </Button>
   );
 }
