@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { loadUserProfile } from "@/screens/user-profile/loader";
 import { UserProfileScreen } from "@/screens/user-profile/UserProfileScreen";
 
-export const Route = createFileRoute("/u/$handle/")({
+export const Route = createFileRoute("/_app/u/$handle/")({
   loader: ({ context: { queryClient }, params: { handle } }) =>
     loadUserProfile(queryClient, handle),
   component: RouteComponent,
