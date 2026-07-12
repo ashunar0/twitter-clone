@@ -15,7 +15,7 @@ export function NotificationsScreen() {
   if (!data) return null;
 
   return (
-    <main className="mx-auto max-w-xl p-6">
+    <main className="w-full p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Notifications</h1>
         <Button

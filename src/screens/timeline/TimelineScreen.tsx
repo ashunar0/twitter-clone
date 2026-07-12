@@ -16,7 +16,7 @@ export function TimelineScreen() {
   } = useTweetsQuery();
 
   return (
-    <main className="mx-auto min-h-svh w-full max-w-xl border-x border-border">
+    <main className="min-h-svh w-full border-x border-border">
       <TweetComposer />
       {isLoading ? (
         <div className="p-6 text-sm text-fg-muted">Loading…</div>
