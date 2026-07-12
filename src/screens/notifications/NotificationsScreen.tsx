@@ -4,40 +4,29 @@ import {
   Heart,
   MessageCircle,
   Repeat2,
+  Settings,
   User,
   UserPlus,
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import { Avatar } from "@/shared/ui/avatar";
-import { Button } from "@/shared/ui/button";
 import { useNotificationsQuery } from "@features/notifications/client/queries";
-import { useMarkAllReadMutation } from "@features/notifications/client/mutations";
 import type { Notification } from "@features/notifications/type";
 import type { ActorSummary } from "@features/notifications/schema";
 
-// 通知一覧画面。unreadCount と Mark all read ボタンを上部に。
+// 通知一覧画面。上部に header (タイトル + 設定 icon)、下に通知 list を並べる。
 export function NotificationsScreen() {
   const { data, isLoading, error } = useNotificationsQuery();
-  const markAllRead = useMarkAllReadMutation();
 
   if (isLoading) return <div className="p-6">Loading…</div>;
   if (error) return <div className="p-6 text-red-600">Failed to load</div>;
   if (!data) return null;
 
   return (
-    <main className="w-full p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Notifications</h1>
-        <Button
-          variant="outline"
-          disabled={data.unreadCount === 0 || markAllRead.isPending}
-          onClick={() => markAllRead.mutate()}
-        >
-          Mark all read
-        </Button>
-      </div>
-      <div className="mb-3 text-sm text-neutral-600">
-        Unread: <strong className="text-neutral-900">{data.unreadCount}</strong>
+    <main className="min-h-svh w-full border-x border-border">
+      <div className="my-4 px-4 flex items-center justify-between">
+        <h1 className="text-xl font-bold">Notifications</h1>
+        <Settings size={20} />
       </div>
       {data.notifications.length === 0 ? (
         // FIXME: 通知が実データ 0 件のときの見た目確認用の仮 mock。動作確認終わったら消す。

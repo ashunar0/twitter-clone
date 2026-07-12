@@ -28,7 +28,7 @@ export function UserProfileScreen({ handle }: { handle: string }) {
   const isMe = session.data?.user.id === profile.userId;
 
   return (
-    <main className="w-full p-6">
+    <main className="min-h-svh w-full border-x border-border">
       <div className="mb-6 rounded-lg border border-neutral-200 p-4">
         <div className="mb-2 flex items-start justify-between gap-4">
           <div>

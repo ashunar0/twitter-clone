@@ -200,6 +200,8 @@
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* route 切替で scroll 有無が変わっても scrollbar 分の余白を常に確保して layout がガタつかないようにする */
+  scrollbar-gutter: stable;
 }
 
 body {
