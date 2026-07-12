@@ -55,10 +55,11 @@ export function NotificationsScreen() {
 }
 
 // kind ごとの見た目メタ (icon / 色 / 文言)。schema.kind は string なので未対応は default にフォールバック。
+// suffix は actor 名の直後に続く固定文言 — 名前だけ bold 表示するため文字列を name / suffix に分けて持つ。
 type KindMeta = {
   icon: ComponentType<SVGProps<SVGSVGElement>>;
   colorClass: string;
-  describe: (name: string) => string;
+  suffix: string;
 };
 
 // FIXME: 見た目確認用の仮データ。動作確認終わったら消す。
@@ -122,27 +123,27 @@ const KIND_META: Record<string, KindMeta> = {
   follow: {
     icon: UserPlus,
     colorClass: "text-brand-blue",
-    describe: (name) => `${name} さんにフォローされました`,
+    suffix: " さんにフォローされました",
   },
   like: {
     icon: Heart,
     colorClass: "text-pink-500",
-    describe: (name) => `${name} さんがあなたのツイートをいいねしました`,
+    suffix: " さんがあなたのツイートをいいねしました",
   },
   retweet: {
     icon: Repeat2,
     colorClass: "text-emerald-500",
-    describe: (name) => `${name} さんがあなたのツイートをリツイートしました`,
+    suffix: " さんがあなたのツイートをリツイートしました",
   },
   reply: {
     icon: MessageCircle,
     colorClass: "text-brand-blue",
-    describe: (name) => `${name} さんがあなたのツイートに返信しました`,
+    suffix: " さんがあなたのツイートに返信しました",
   },
   mention: {
     icon: AtSign,
     colorClass: "text-brand-blue",
-    describe: (name) => `${name} さんがあなたにメンションしました`,
+    suffix: " さんがあなたにメンションしました",
   },
 };
 
@@ -159,9 +160,7 @@ function NotificationItem({
   const Icon = meta?.icon ?? MessageCircle;
   const iconColor = meta?.colorClass ?? "text-fg-muted";
   const actorName = actor?.name ?? "unknown";
-  const text = meta
-    ? meta.describe(actorName)
-    : `${actorName} did ${notification.kind}.`;
+  const suffix = meta?.suffix ?? ` did ${notification.kind}.`;
 
   return (
     <li
@@ -192,7 +191,10 @@ function NotificationItem({
             </Avatar.Fallback>
           </Avatar.Root>
         )}
-        <p className="text-sm text-fg">{text}</p>
+        <p className="text-sm text-fg">
+          <strong className="font-bold">{actorName}</strong>
+          {suffix}
+        </p>
       </div>
     </li>
   );
