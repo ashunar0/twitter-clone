@@ -84,7 +84,7 @@ function TrendsCard() {
         </ul>
         <button
           type="button"
-          className="w-full rounded-b-lg px-4 py-3 text-left text-sm text-brand-blue hover:bg-fg/5"
+          className="w-full rounded-b-lg px-4 py-3 text-left text-sm font-semibold text-brand-blue-x hover:bg-fg/5"
         >
           さらに表示
         </button>
@@ -131,7 +131,7 @@ function WhoToFollowCard() {
         </ul>
         <button
           type="button"
-          className="w-full rounded-b-lg px-4 py-3 text-left text-sm text-brand-blue hover:bg-fg/5"
+          className="w-full rounded-b-lg px-4 py-3 text-left text-sm font-semibold text-brand-blue-x hover:bg-fg/5"
         >
           さらに表示
         </button>

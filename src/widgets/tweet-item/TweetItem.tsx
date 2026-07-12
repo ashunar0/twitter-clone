@@ -14,6 +14,8 @@ export type TweetItemProps = {
   author: AuthorSummary | undefined;
   // retweet 行の場合、行 author (誰が RT したか) を渡すと上に「◯◯ さんがリツイート」を出す。
   retweetedBy?: AuthorSummary | ProfileSummary;
+  // reply tweet の場合、親 tweet の author の handle を渡すとヘッダの下に「返信先: @xxx さん」を出す。
+  replyingTo?: { handle: string };
   replyCount?: number;
   retweetCount?: number;
   likeCount?: number;
@@ -25,6 +27,7 @@ export function TweetItem({
   tweet,
   author,
   retweetedBy,
+  replyingTo,
   replyCount = 0,
   retweetCount = 0,
   likeCount = 0,
@@ -70,8 +73,18 @@ export function TweetItem({
             {formatRelativeTime(tweet.createdAt)}
           </time>
         </header>
+        {/* 親 tweet を持つ reply の場合、本文の直上に「返信先: @xxx さん」を薄色で出す (X 準拠)。 */}
+        {replyingTo ? (
+          <p className="text-sm text-fg-muted">
+            返信先:{" "}
+            <span className="font-semibold text-brand-blue-x">
+              @{replyingTo.handle}
+            </span>{" "}
+            さん
+          </p>
+        ) : null}
         <p className="whitespace-pre-wrap wrap-break-word text-sm text-fg">
-          {tweet.body}
+          {renderBodyWithMentions(tweet.body)}
         </p>
         <footer className="mt-2 flex max-w-md items-center justify-between text-fg-muted">
           <ActionButton
@@ -165,6 +178,24 @@ function ActionButton({
       {/* count > 0 の時だけ数字を出すが、非表示時も同じ幅を占有するため min-w を button 側に確保する。 */}
       {count && count > 0 ? <span>{count}</span> : null}
     </button>
+  );
+}
+
+// body 中の @handle を brand-blue-x で色付けする。将来 Link 化するときはここを差し替える。
+// regex は @ + [A-Za-z0-9_] の連続で、Twitter/X の handle と同じ文字集合を許容する。
+// SPLIT_RE は global で split 用、MENTION_RE は非 global で個別 part の判定用 (lastIndex 状態を持たない)。
+const SPLIT_RE = /(@[A-Za-z0-9_]+)/g;
+const MENTION_RE = /^@[A-Za-z0-9_]+$/;
+function renderBodyWithMentions(body: string) {
+  const parts = body.split(SPLIT_RE);
+  return parts.map((part, i) =>
+    MENTION_RE.test(part) ? (
+      <span key={i} className="font-semibold text-brand-blue-x">
+        {part}
+      </span>
+    ) : (
+      part
+    ),
   );
 }
 

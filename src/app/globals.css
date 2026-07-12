@@ -265,8 +265,9 @@ body {
    hisui のトンマナ管轄外 — 記憶に残る Twitter らしさを演出する場所で使う。
    例: link / verified badge / primary CTA (ポストボタン等)。 */
 @theme {
-  --color-brand-blue: #00aced;        /* logo blue (primary) */
+  --color-brand-blue: #00aced;        /* logo blue (primary, 古典パレット) */
   --color-brand-blue-dark: #0084b4;   /* hover / active 用の暗め */
+  --color-brand-blue-x: #1d9bf0;      /* X 期の link/interactive text 用 blue */
   --color-brand-verified: #1dcaff;    /* verified バッジ */
   --color-brand-bg: #c0deed;          /* 薄い bg (banner / hover 面) */
 }
